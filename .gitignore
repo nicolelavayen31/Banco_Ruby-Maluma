@@ -16,7 +16,8 @@ _out/
 
 # NuGet
 *.nupkg
-packages/
+/packages/
+!isc-atm-integrator-main/packages/
 .nuget/
 
 # VS Code

@@ -1,0 +1,19 @@
+{
+    "name": "@isc/client",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "bun run src/main.tsx",
+        "start": "bun run src/main.tsx"
+    },
+    "dependencies": {
+        "ink": "^5.0.0",
+        "react": "^18.3.0"
+    },
+    "devDependencies": {
+        "@types/node": "^26.1.1",
+        "@types/react": "^18.3.0",
+        "typescript": "^5.7.0"
+    }
+}
