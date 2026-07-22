@@ -4,14 +4,23 @@ using System.Threading.Tasks;
 
 namespace BancoMaluma.Infrastructure.Persistence
 {
+    /// <summary>
+    /// Utilidad de infraestructura para la inicialización y migración inicial de la base de datos de Banco Maluma.
+    /// Ejecuta sentencias directas ADO.NET usando <see cref="NpgsqlConnection"/> para garantizar la existencia de tablas y datos semilla.
+    /// </summary>
     public static class DbInitializer
     {
+        /// <summary>
+        /// Crea la base de datos de Banco Maluma si no existe y ejecuta el script DDL de creación de tablas y semilla.
+        /// </summary>
+        /// <param name="connectionString">Cadena de conexión de PostgreSQL.</param>
+        /// <returns>Tarea asíncrona de inicialización.</returns>
         public static async Task InitializeAsync(string connectionString)
         {
             var builder = new NpgsqlConnectionStringBuilder(connectionString);
             string dbName = builder.Database ?? "Banco Maluma";
             
-            // 1. Connect to default 'postgres' db to check / create database
+            // 1. Se conecta temporalmente a la base de datos por defecto 'postgres' para comprobar y crear la base de datos objetivo.
             builder.Database = "postgres";
             using (var masterConn = new NpgsqlConnection(builder.ConnectionString))
             {
@@ -30,12 +39,13 @@ namespace BancoMaluma.Infrastructure.Persistence
                 }
             }
 
-            // 2. Connect to target database and execute tables creation and seed script
+            // 2. Se conecta a la base de datos destino 'Banco Maluma' para ejecutar el script DDL de creación de tablas y semilla.
             builder.Database = dbName;
             using (var conn = new NpgsqlConnection(builder.ConnectionString))
             {
                 await conn.OpenAsync();
 
+                // Script SQL nativo para estructurar las tablas relacionales usuario, cuenta y auditoria.
                 string script = @"
 CREATE TABLE IF NOT EXISTS usuario (
     usuario_id SERIAL PRIMARY KEY,

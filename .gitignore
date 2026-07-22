@@ -34,3 +34,15 @@ Thumbs.db
 project.assets.json
 project.nuget.cache
 *.nuget.dgspec.json
+
+
+# Node.js
+**/node_modules/
+**/dist/
+**/.env
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Bun
+**/bun.lockb

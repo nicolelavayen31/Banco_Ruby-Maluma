@@ -6,6 +6,7 @@ import { TransactionEntity } from './infrastructure/persistence/typeorm/transact
 import { TRANSACTION_REPOSITORY } from './domain/transaction.repository';
 import { TransactionRepository } from './infrastructure/persistence/typeorm/transaction.repository';
 import { TransactionsController } from './presentation/transactions.controller';
+import { IntegradorController } from './presentation/integrador.controller';
 import { CreateTransactionHandler } from './application/commands/create-transaction/handler';
 import { TransferHandler } from './application/commands/transfer/handler';
 import { UpdateTransactionStateHandler } from './application/commands/update-transaction-state/handler';
@@ -20,7 +21,7 @@ import { CacheResultService } from '@shared/core/cache/cache-result.service';
         CqrsModule,
         BankAccountsModule,
     ],
-    controllers: [TransactionsController],
+    controllers: [TransactionsController, IntegradorController],
     providers: [
         {
             provide: TRANSACTION_REPOSITORY,

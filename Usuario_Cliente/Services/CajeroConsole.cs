@@ -4,22 +4,47 @@ using Spectre.Console;
 
 namespace Usuario_Cliente.Services;
 
+/// <summary>
+/// Proporciona la interfaz interactiva de línea de comandos (CLI) del Cajero Automático usando Spectre.Console.
+/// Controla el flujo de autenticación, la presentación de los menús y la manipulación visual de saldos e históricos.
+/// </summary>
 public class CajeroConsole
 {
+    /// <summary>
+    /// Límite máximo de dinero permitido por transacción de depósito local ($2000).
+    /// </summary>
     private const decimal LIMITE_DEPOSITO = 2000m;
+
+    /// <summary>
+    /// Límite máximo de dinero permitido por transacción de retiro local ($800).
+    /// </summary>
     private const decimal LIMITE_RETIRO = 800m;
 
     private readonly CajeroApiClient _apiClient;
+    private readonly string _bankName;
+    private readonly string _bankPrefix;
     private string _cuenta = string.Empty;
     private string _pin = string.Empty;
     private string _titular = string.Empty;
     private string _sessionId = string.Empty;
 
-    public CajeroConsole(CajeroApiClient apiClient)
+    /// <summary>
+    /// Inicializa una nueva instancia de la clase <see cref="CajeroConsole"/>.
+    /// </summary>
+    /// <param name="apiClient">Cliente HTTP para enviar peticiones al banco correspondiente.</param>
+    /// <param name="bankName">Nombre comercial del banco (Ruby o Maluma).</param>
+    /// <param name="bankPrefix">Prefijo único del banco para formatear identificadores (RUBY o MALUMA).</param>
+    public CajeroConsole(CajeroApiClient apiClient, string bankName, string bankPrefix)
     {
         _apiClient = apiClient;
+        _bankName = bankName;
+        _bankPrefix = bankPrefix.ToUpper();
     }
 
+    /// <summary>
+    /// Inicia el bucle principal de ejecución del cajero automático.
+    /// Presenta el menú de bienvenida y gestiona el flujo de inserción de tarjeta/cuenta.
+    /// </summary>
     public async Task RunAsync()
     {
         while (true)
@@ -36,6 +61,7 @@ public class CajeroConsole
                 return;
             }
 
+            // Si el usuario pasa la autenticación de PIN, inicia su sesión interactiva.
             if (await AuthenticateAsync())
             {
                 await RunSessionAsync();
@@ -43,12 +69,18 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Solicita las credenciales del cliente (Número de cuenta y PIN) y realiza la autenticación remota.
+    /// </summary>
+    /// <returns>True si la autenticación fue exitosa; de lo contrario, False.</returns>
     private async Task<bool> AuthenticateAsync()
     {
         _cuenta = AnsiConsole.Ask<string>("Ingrese el número de cuenta/tarjeta:");
         _pin = AnsiConsole.Prompt(new TextPrompt<string>("Ingrese su PIN").Secret());
 
         string authResult = await _apiClient.AutenticarAsync(_cuenta, _pin);
+        
+        // Comprueba si el servidor devolvió algún error lógico de PIN o cuenta.
         if (authResult.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase) || authResult.Contains("error", StringComparison.OrdinalIgnoreCase))
         {
             AnsiConsole.MarkupLine("[red]Autenticación fallida.[/]");
@@ -60,6 +92,7 @@ public class CajeroConsole
 
         try
         {
+            // Parsea la respuesta para obtener los datos del titular e iniciar la sesión con un Session ID único.
             using JsonDocument document = JsonDocument.Parse(authResult);
             _titular = document.RootElement.GetProperty("titular").GetString() ?? string.Empty;
             _sessionId = Guid.NewGuid().ToString();
@@ -73,6 +106,9 @@ public class CajeroConsole
         return true;
     }
 
+    /// <summary>
+    /// Bucle secundario de sesión activa que presenta las opciones de cajero (Saldo, Retiro, Depósito, Historial, Transferir).
+    /// </summary>
     private async Task RunSessionAsync()
     {
         while (true)
@@ -101,7 +137,7 @@ public class CajeroConsole
                     await TransferirAsync();
                     break;
                 case 5:
-                    return;
+                    return; // Retira la tarjeta y sale de la sesión
             }
 
             AnsiConsole.MarkupLine("[grey]Presione Enter para continuar...[/]");
@@ -109,10 +145,13 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Dibuja el panel de título principal del cajero automático.
+    /// </summary>
     private void DrawTitle()
     {
-        Panel title = new Panel("[bold cyan]CAJERO AUTOMATICO BANCO RUBY[/]")
-            .Header("[green]Banco Ruby[/]")
+        Panel title = new Panel($"[bold cyan]CAJERO AUTOMATICO BANCO {_bankPrefix}[/]")
+            .Header($"[green]Banco {_bankName}[/]")
             .Border(BoxBorder.Double)
             .Expand();
 
@@ -120,6 +159,9 @@ public class CajeroConsole
         AnsiConsole.WriteLine();
     }
 
+    /// <summary>
+    /// Dibuja la cabecera informativa de la sesión activa en el cajero automático.
+    /// </summary>
     private void DrawSessionHeader()
     {
         Table headerTable = new Table().Expand().HideHeaders();
@@ -132,12 +174,15 @@ public class CajeroConsole
 
         Panel panel = new Panel(headerTable)
             .Border(BoxBorder.Double)
-            .Header("[bold cyan]CAJERO AUTOMATICO BANCO RUBY[/]");
+            .Header($"[bold cyan]CAJERO AUTOMATICO BANCO {_bankPrefix}[/]");
 
         AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
     }
 
+    /// <summary>
+    /// Ofusca los dígitos de la tarjeta dejando únicamente visibles los últimos 4 números.
+    /// </summary>
     private static string MaskCard(string cardNumber)
     {
         if (string.IsNullOrWhiteSpace(cardNumber) || cardNumber.Length <= 4)
@@ -147,16 +192,22 @@ public class CajeroConsole
         return new string('*', cardNumber.Length - 4) + visible;
     }
 
-    private static string FormatAccountLabel(string accountNumber)
+    /// <summary>
+    /// Formatea el número de cuenta local para mostrar su banco origen en las etiquetas.
+    /// </summary>
+    private string FormatAccountLabel(string accountNumber)
     {
         if (string.IsNullOrWhiteSpace(accountNumber))
             return string.Empty;
 
-        return accountNumber.StartsWith("RUBY-", StringComparison.OrdinalIgnoreCase)
+        return accountNumber.StartsWith($"{_bankPrefix}-", StringComparison.OrdinalIgnoreCase)
             ? accountNumber
-            : $"RUBY-{accountNumber[^4..]}";
+            : $"{_bankPrefix}-{accountNumber[^4..]}";
     }
 
+    /// <summary>
+    /// Presenta de forma interactiva una lista de opciones y retorna el índice de la opción seleccionada.
+    /// </summary>
     private static int PromptMenuOption(string promptMessage, string[] options)
     {
         var prompt = new SelectionPrompt<string>()
@@ -169,6 +220,9 @@ public class CajeroConsole
         return Array.IndexOf(options, selected);
     }
 
+    /// <summary>
+    /// Llama al API para consultar saldo e imprime los detalles del cliente en una tabla limpia.
+    /// </summary>
     private async Task ConsultarSaldoAsync()
     {
         string result = await _apiClient.ConsultarSaldoAsync(_cuenta);
@@ -205,6 +259,9 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Captura un monto por consola y solicita depósito de efectivo en el servidor de base de datos.
+    /// </summary>
     private async Task DepositarAsync()
     {
         decimal monto = AnsiConsole.Ask<decimal>($"Monto a depositar (máx {LIMITE_DEPOSITO:N0}):");
@@ -279,6 +336,9 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Captura un monto por consola y procesa un retiro de efectivo debitando fondos del banco.
+    /// </summary>
     private async Task RetirarAsync()
     {
         decimal monto = AnsiConsole.Ask<decimal>($"Monto a retirar (máx {LIMITE_RETIRO:N0}):");
@@ -356,6 +416,10 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Consulta el listado histórico de movimientos de la cuenta de forma tabulada.
+    /// Asigna colores de forma semántica dependiendo del tipo de operación (Débitos en rojo, Créditos en verde).
+    /// </summary>
     private async Task MostrarHistorialAsync()
     {
         string result = await _apiClient.ObtenerHistorialAsync(_cuenta);
@@ -399,17 +463,17 @@ public class CajeroConsole
             int numero = 1;
             foreach (JsonElement item in historial)
             {
-                // Lee "tipo" o "Tipo" según cómo venga el JSON del servidor
+                // Lee "tipo" o "Tipo" según cómo venga el JSON del servidor.
                 string tipo = string.Empty;
                 if (item.TryGetProperty("tipo", out JsonElement tp)) tipo = tp.GetString() ?? string.Empty;
                 else if (item.TryGetProperty("Tipo", out JsonElement tp2)) tipo = tp2.GetString() ?? string.Empty;
 
-                // Lee "monto" o "Monto"
+                // Lee "monto" o "Monto".
                 decimal monto = 0m;
                 if (item.TryGetProperty("monto", out JsonElement mn)) monto = mn.GetDecimal();
                 else if (item.TryGetProperty("Monto", out JsonElement mn2)) monto = mn2.GetDecimal();
 
-                // Lee "descripcion" o "Descripcion"
+                // Lee "descripcion" o "Descripcion".
                 string desc = string.Empty;
                 if (item.TryGetProperty("descripcion", out JsonElement dc)) desc = dc.GetString() ?? string.Empty;
                 else if (item.TryGetProperty("Descripcion", out JsonElement dc2)) desc = dc2.GetString() ?? string.Empty;
@@ -424,7 +488,7 @@ public class CajeroConsole
                     desc = $"Se acreditó a la cuenta ${monto:N2}";
                 }
 
-                // Lee "creadoEn" o "CreadoEn"
+                // Lee "creadoEn" o "CreadoEn".
                 DateTime fechaRaw = DateTime.MinValue;
                 if (item.TryGetProperty("creadoEn", out JsonElement fe)) fechaRaw = fe.GetDateTime();
                 else if (item.TryGetProperty("CreadoEn", out JsonElement fe2)) fechaRaw = fe2.GetDateTime();
@@ -471,6 +535,9 @@ public class CajeroConsole
         }
     }
 
+    /// <summary>
+    /// Captura los datos de destino (cuenta, banco, concepto, monto) y efectúa una transferencia.
+    /// </summary>
     private async Task TransferirAsync()
     {
         string[] transferOptions = { "Continuar", "Regresar al menú" };

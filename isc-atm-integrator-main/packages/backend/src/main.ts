@@ -8,6 +8,7 @@ import { corsSetup } from '@infrastructure/config/cors';
 import { asyncLocalStorageSetup } from '@infrastructure/config/async-local-storage';
 import { csrfSetup } from '@features/auth/infrastructure/csrf.middleware';
 import { helmetSetup } from '@infrastructure/config/helmet';
+import { swaggerSetup } from '@infrastructure/config/swagger';
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule, { snapshot: true });
@@ -27,6 +28,8 @@ async function bootstrap() {
     helmetSetup(app);
 
     asyncLocalStorageSetup(app);
+
+    await swaggerSetup(app);
 
     await app.listen(appPort);
 }
