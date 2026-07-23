@@ -55,10 +55,9 @@ namespace BancoMaluma.Features.Cuentas.Infrastructure.Repositories
         /// <returns>Tarea completada.</returns>
         public async Task UpdateAsync(Cuenta cuenta, CancellationToken cancellationToken = default)
         {
-            // Marca el estado de la entidad como modificado en la base de datos de escritura
-            // para que sea procesada en el SaveChanges del manejador o endpoint correspondiente.
+            // Marca el estado de la entidad como modificado en la base de datos de escritura y persiste los cambios en PostgreSQL.
             _writeDb.Cuentas.Update(cuenta);
-            await Task.CompletedTask;
+            await _writeDb.SaveChangesAsync(cancellationToken);
         }
     }
 }

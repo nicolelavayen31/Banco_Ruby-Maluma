@@ -190,6 +190,7 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             string numero,
             OperacionMontoRequest body,
             ICuentaRepository repo,
+            WriteDbContext db,
             CancellationToken cancellationToken)
         {
             var result = await repo.GetByNumeroCuentaAsync(numero, cancellationToken);
@@ -199,6 +200,18 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             
             // Incrementa el balance.
             cuenta.Saldo += body.Monto;
+            
+            // Registrar auditoría del depósito
+            var auditoria = new Auditoria
+            {
+                CuentaId = cuenta.CuentaId,
+                NumeroCuenta = cuenta.NumeroCuenta,
+                Tipo = "Depósito",
+                Monto = body.Monto,
+                Descripcion = $"Depósito de ${body.Monto:N2} realizado exitosamente.",
+                CreadoEn = DateTime.UtcNow
+            };
+            await db.Auditoria.AddAsync(auditoria, cancellationToken);
             
             // Actualiza y persiste la entidad.
             await repo.UpdateAsync(cuenta, cancellationToken);
@@ -213,6 +226,7 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             string numero,
             OperacionMontoRequest body,
             ICuentaRepository repo,
+            WriteDbContext db,
             CancellationToken cancellationToken)
         {
             var result = await repo.GetByNumeroCuentaAsync(numero, cancellationToken);
@@ -227,6 +241,19 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             }
 
             cuenta.Saldo -= body.Monto;
+
+            // Registrar auditoría del retiro
+            var auditoria = new Auditoria
+            {
+                CuentaId = cuenta.CuentaId,
+                NumeroCuenta = cuenta.NumeroCuenta,
+                Tipo = "Retiro",
+                Monto = body.Monto,
+                Descripcion = $"Retiro de ${body.Monto:N2} realizado exitosamente.",
+                CreadoEn = DateTime.UtcNow
+            };
+            await db.Auditoria.AddAsync(auditoria, cancellationToken);
+
             await repo.UpdateAsync(cuenta, cancellationToken);
 
             return Results.Ok(new { mensaje = $"Retiro de ${body.Monto:N2} realizado exitosamente", nuevoSaldo = cuenta.Saldo });
