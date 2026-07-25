@@ -57,7 +57,21 @@ public class CajeroConsole
 
             if (mainSelection == 1)
             {
-                AnsiConsole.MarkupLine("[green]Hasta luego.[/]");
+                AnsiConsole.Clear();
+                Grid exitGrid = new Grid().AddColumn();
+                exitGrid.AddRow(new Markup($"[bold deepskyblue1]Cerrando sesión en Banco {_bankName}...[/]"));
+                exitGrid.AddRow(new Markup("[grey85]Su tarjeta ha sido retirada con éxito. Regresando a la Red Bancaria...[/]"));
+                
+                Panel exitPanel = new Panel(exitGrid)
+                {
+                    Border = BoxBorder.Rounded,
+                    Padding = new Padding(3, 1, 3, 1)
+                };
+                AnsiConsole.Write(exitPanel);
+                AnsiConsole.WriteLine();
+                
+                AnsiConsole.MarkupLine("  [grey]Presione Enter para continuar...[/]");
+                Console.ReadLine();
                 return;
             }
 
@@ -150,12 +164,21 @@ public class CajeroConsole
     /// </summary>
     private void DrawTitle()
     {
-        Panel title = new Panel($"[bold cyan]CAJERO AUTOMATICO BANCO {_bankPrefix}[/]")
-            .Header($"[green]Banco {_bankName}[/]")
-            .Border(BoxBorder.Double)
-            .Expand();
+        Grid headerGrid = new Grid();
+        headerGrid.AddColumn();
+        headerGrid.AddColumn();
+        headerGrid.AddRow(
+            new Markup("[white]  /\\\n /__\\\n ||||\n======[/]"),
+            new Markup($"\n [bold deepskyblue1]BANCO {_bankPrefix}[/]\n [grey85]Cajero Automático Activo[/]")
+        );
 
-        AnsiConsole.Write(title);
+        Panel panel = new Panel(headerGrid)
+        {
+            Border = BoxBorder.Ascii,
+            Padding = new Padding(1, 0, 1, 0)
+        };
+
+        AnsiConsole.Write(panel);
         AnsiConsole.WriteLine();
     }
 
@@ -246,12 +269,17 @@ public class CajeroConsole
             decimal saldo = root.GetProperty("saldo").GetDecimal();
             string titular = root.GetProperty("titular").GetString() ?? string.Empty;
 
-            Table table = new Table().Border(TableBorder.Rounded).Title("Saldo");
-            table.AddColumn("Cuenta");
-            table.AddColumn("Titular");
-            table.AddColumn("Saldo");
-            table.AddRow(FormatAccountLabel(_cuenta), Markup.Escape(titular), $"${saldo:N2}");
+            AnsiConsole.Clear();
+            AnsiConsole.Write(new Rule("[bold deepskyblue1]CONSULTA DE SALDO[/]").LeftJustified());
+            AnsiConsole.WriteLine();
+
+            Table table = new Table().Border(TableBorder.Rounded).Expand();
+            table.AddColumn("[bold white]Tarjeta[/]");
+            table.AddColumn("[bold white]Titular[/]");
+            table.AddColumn("[bold white]Saldo Disponible[/]");
+            table.AddRow(MaskCard(_cuenta), Markup.Escape(titular), $"[green]${saldo:N2}[/]");
             AnsiConsole.Write(table);
+            AnsiConsole.WriteLine();
         }
         catch
         {
@@ -442,95 +470,152 @@ public class CajeroConsole
             string titular = root.GetProperty("titular").GetString() ?? string.Empty;
             List<JsonElement> historial = root.GetProperty("historial").EnumerateArray().ToList();
 
+            AnsiConsole.Clear();
+            
+            AnsiConsole.Write(new Rule("[bold deepskyblue1]CONSULTA DE MOVIMIENTOS[/]").LeftJustified());
+            AnsiConsole.WriteLine();
+
+            Grid criteriaGrid = new Grid().AddColumns(3);
+            criteriaGrid.AddRow(
+                new Markup($"[grey]Número de Tarjeta:[/] [bold white]{MaskCard(_cuenta)}[/]"),
+                new Markup($"[grey]Titular:[/] [bold white]{Markup.Escape(titular)}[/]"),
+                new Markup($"[grey]Búsqueda:[/] [bold green][[Todos]][/]")
+            );
+            
+            Panel criteriaPanel = new Panel(criteriaGrid)
+            {
+                Header = new PanelHeader("[bold deepskyblue1] Criterios de Búsqueda [/]"),
+                Border = BoxBorder.Rounded,
+                Padding = new Padding(2, 0, 2, 0)
+            };
+
+            AnsiConsole.Write(criteriaPanel);
+            AnsiConsole.WriteLine();
+
             if (historial.Count == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]No hay movimientos registrados.[/]");
+                AnsiConsole.MarkupLine("[yellow]No hay movimientos registrados para esta cuenta.[/]");
                 return;
             }
 
-            Table table = new Table()
-                .Border(TableBorder.Rounded)
-                .Title($"[bold cyan]Movimientos — {Markup.Escape(titular)}[/]")
-                .Expand();
+            var txs = new List<(DateTime Fecha, string Descripcion, string Tipo, decimal Monto, bool IsCredit, decimal Saldo)>();
+            decimal totalDebitos = 0m;
+            decimal totalCreditos = 0m;
 
-            table.AddColumn(new TableColumn("[bold]#[/]").Centered());
-            table.AddColumn(new TableColumn("[bold]Movimiento[/]").Centered());
-            table.AddColumn(new TableColumn("[bold]Descripción[/]").LeftAligned());
-            table.AddColumn(new TableColumn("[bold]Valor[/]").RightAligned());
-            table.AddColumn(new TableColumn("[bold]Fecha[/]").Centered());
-            table.AddColumn(new TableColumn("[bold]Hora[/]").Centered());
-
-            int numero = 1;
             foreach (JsonElement item in historial)
             {
-                // Lee "tipo" o "Tipo" según cómo venga el JSON del servidor.
                 string tipo = string.Empty;
                 if (item.TryGetProperty("tipo", out JsonElement tp)) tipo = tp.GetString() ?? string.Empty;
                 else if (item.TryGetProperty("Tipo", out JsonElement tp2)) tipo = tp2.GetString() ?? string.Empty;
 
-                // Lee "monto" o "Monto".
                 decimal monto = 0m;
                 if (item.TryGetProperty("monto", out JsonElement mn)) monto = mn.GetDecimal();
                 else if (item.TryGetProperty("Monto", out JsonElement mn2)) monto = mn2.GetDecimal();
 
-                // Lee "descripcion" o "Descripcion".
                 string desc = string.Empty;
                 if (item.TryGetProperty("descripcion", out JsonElement dc)) desc = dc.GetString() ?? string.Empty;
                 else if (item.TryGetProperty("Descripcion", out JsonElement dc2)) desc = dc2.GetString() ?? string.Empty;
 
-                string tipoLower = tipo.ToLowerInvariant();
-                if (tipoLower.Contains("retiro") || tipoLower.Contains("withdrawal"))
-                {
-                    desc = $"Se debitó de la cuenta ${monto:N2}";
-                }
-                else if (tipoLower.Contains("deposit") || tipoLower.Contains("depósito") || tipoLower.Contains("dep"))
-                {
-                    desc = $"Se acreditó a la cuenta ${monto:N2}";
-                }
-
-                // Lee "creadoEn" o "CreadoEn".
                 DateTime fechaRaw = DateTime.MinValue;
                 if (item.TryGetProperty("creadoEn", out JsonElement fe)) fechaRaw = fe.GetDateTime();
                 else if (item.TryGetProperty("CreadoEn", out JsonElement fe2)) fechaRaw = fe2.GetDateTime();
 
                 DateTime fechaLocal = fechaRaw.ToLocalTime();
 
-                string color = tipo.ToLowerInvariant() switch
-                {
-                    string t when t.Contains("withdrawal") || t.Contains("retiro") => "red",
-                    string t when t.Contains("deposit") || t.Contains("dep") => "green",
-                    string t when t.Contains("transferencia salida") || t.Contains("transferencia enviada") => "red",
-                    string t when t.Contains("transferencia entrada") || t.Contains("transferencia recibida") => "green",
-                    _ => "white"
-                };
+                string tipoLower = tipo.ToLowerInvariant();
+                bool isDebit = tipoLower.Contains("withdrawal") || tipoLower.Contains("retiro") || tipoLower.Contains("transferencia salida") || tipoLower.Contains("transferencia enviada");
+                bool isCredit = tipoLower.Contains("deposit") || tipoLower.Contains("dep") || tipoLower.Contains("transferencia entrada") || tipoLower.Contains("transferencia recibida");
 
-                string etiqueta = tipo.ToLowerInvariant() switch
+                if (isCredit) totalCreditos += monto;
+                if (isDebit) totalDebitos += monto;
+
+                txs.Add((fechaLocal, desc, isCredit ? "Crédito" : "Débito", monto, isCredit, 0m));
+            }
+
+            decimal saldoFinal = 0m;
+            string balanceResult = await _apiClient.ConsultarSaldoAsync(_cuenta);
+            if (!balanceResult.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
+            {
+                try
                 {
-                    string t when t.Contains("withdrawal") || t.Contains("retiro") => "Retiro",
-                    string t when t.Contains("deposit") || t.Contains("dep") => "Depósito",
-                    string t when t.Contains("transferencia salida") || t.Contains("transferencia enviada") => "Transferencia enviada",
-                    string t when t.Contains("transferencia entrada") || t.Contains("transferencia recibida") => "Transferencia recibida",
-                    _ => Markup.Escape(tipo)
-                };
+                    using JsonDocument docB = JsonDocument.Parse(balanceResult);
+                    saldoFinal = docB.RootElement.GetProperty("saldo").GetDecimal();
+                }
+                catch {}
+            }
+
+            txs = txs.OrderByDescending(t => t.Fecha).ToList();
+            
+            decimal currentRunning = saldoFinal;
+            for (int i = 0; i < txs.Count; i++)
+            {
+                var t = txs[i];
+                t.Saldo = currentRunning;
+                txs[i] = t;
+
+                if (t.IsCredit)
+                {
+                    currentRunning -= t.Monto;
+                }
+                else
+                {
+                    currentRunning += t.Monto;
+                }
+            }
+
+            decimal saldoInicial = currentRunning;
+
+            Table table = new Table()
+                .Border(TableBorder.Rounded)
+                .Expand();
+
+            table.AddColumn(new TableColumn("[bold white]Fecha / Hora[/]").Centered());
+            table.AddColumn(new TableColumn("[bold white]Descripción[/]").LeftAligned());
+            table.AddColumn(new TableColumn("[bold white]Tipo[/]").Centered());
+            table.AddColumn(new TableColumn("[bold white]Monto[/]").RightAligned());
+            table.AddColumn(new TableColumn("[bold white]Saldo[/]").RightAligned());
+
+            foreach (var t in txs)
+            {
+                string color = t.IsCredit ? "green" : "red";
+                string sign = t.IsCredit ? "+" : "-";
+                string amountDisplay = $"{sign}${t.Monto:N2}";
 
                 table.AddRow(
-                    $"[{color}]{numero}[/]",
-                    $"[{color}]{etiqueta}[/]",
-                    $"[{color}]{Markup.Escape(desc)}[/]",
-                    $"[{color}]${monto:N2}[/]",
-                    $"[{color}]{fechaLocal:dd/MM/yyyy}[/]",
-                    $"[{color}]{fechaLocal:HH:mm:ss}[/]"
+                    $"[grey85]{t.Fecha:dd/MM/yyyy HH:mm}[/]",
+                    $"[white]{Markup.Escape(t.Descripcion)}[/]",
+                    $"[{color}]{t.Tipo}[/]",
+                    $"[{color}]{amountDisplay}[/]",
+                    $"[grey93]${t.Saldo:N2}[/]"
                 );
-
-                numero++;
             }
 
             AnsiConsole.Write(table);
             AnsiConsole.WriteLine();
-            AnsiConsole.MarkupLine("[green]●[/] Depósito / Transferencia recibida   [red]●[/] Retiro / Transferencia enviada");
+
+            Grid summaryGrid = new Grid().AddColumns(4);
+            summaryGrid.AddRow(
+                new Markup($"[grey]Saldo Inicial:[/] [white]${saldoInicial:N2}[/]"),
+                new Markup($"[grey]Total Débitos:[/] [red]-${totalDebitos:N2}[/]"),
+                new Markup($"[grey]Total Créditos:[/] [green]+${totalCreditos:N2}[/]"),
+                new Markup($"[grey]Saldo Final:[/] [bold deepskyblue1]${saldoFinal:N2}[/]")
+            );
+
+            Panel summaryPanel = new Panel(summaryGrid)
+            {
+                Header = new PanelHeader("[bold deepskyblue1] Resumen del Período [/]"),
+                Border = BoxBorder.Rounded,
+                Padding = new Padding(2, 0, 2, 0)
+            };
+            AnsiConsole.Write(summaryPanel);
+            AnsiConsole.WriteLine();
+
+            AnsiConsole.MarkupLine("  [grey]ENTER[/] Volver al Menú Principal");
         }
-        catch
+        catch (Exception ex)
         {
+            AnsiConsole.MarkupLine($"[red]EXCEPCIÓN EN RENDERIZADO: {Markup.Escape(ex.Message)}[/]");
+            AnsiConsole.WriteLine(ex.ToString());
             AnsiConsole.WriteLine(result);
         }
     }
@@ -540,31 +625,64 @@ public class CajeroConsole
     /// </summary>
     private async Task TransferirAsync()
     {
-        string[] transferOptions = { "Continuar", "Regresar al menú" };
-        int transferSelection = PromptMenuOption("Transferencia: elija una opción:", transferOptions);
+        AnsiConsole.Clear();
+        AnsiConsole.Write(new Rule("[bold deepskyblue1]NUEVA TRANSFERENCIA[/]").LeftJustified());
+        AnsiConsole.WriteLine();
 
-        if (transferSelection == 1)
-        {
-            AnsiConsole.MarkupLine("[grey]Transferencia cancelada. Regresando al menú.[/]");
-            return;
-        }
+        AnsiConsole.MarkupLine("[grey]Desde la Tarjeta:[/]");
+        AnsiConsole.MarkupLine($"[bold white]{MaskCard(_cuenta)} - {_titular}[/]");
+        AnsiConsole.WriteLine();
 
-        string destino = AnsiConsole.Ask<string>("Cuenta destino:");
+        string destino = AnsiConsole.Prompt(
+            new TextPrompt<string>("[grey]A la Cuenta / Tarjeta:[/]")
+                .PromptStyle("bold white")
+                .ValidationErrorMessage("[red]Por favor ingrese una cuenta válida[/]")
+        );
+
         if (string.IsNullOrWhiteSpace(destino))
         {
             AnsiConsole.MarkupLine("[red]Cuenta destino inválida.[/]");
             return;
         }
 
-        string banco = AnsiConsole.Ask<string>("Banco destino (opcional):");
-        string concepto = AnsiConsole.Ask<string>("Concepto (opcional):");
-        decimal monto = AnsiConsole.Ask<decimal>("Monto a transferir:");
+        string banco = AnsiConsole.Prompt(
+            new TextPrompt<string>("[grey]Banco Destino (opcional, Enter para omitir):[/]")
+                .AllowEmpty()
+        );
+
+        decimal monto = AnsiConsole.Prompt(
+            new TextPrompt<decimal>("[grey]Monto ($):[/]")
+                .PromptStyle("yellow")
+                .ValidationErrorMessage("[red]Por favor ingrese un monto válido mayor a 0[/]")
+        );
 
         if (monto <= 0)
         {
             AnsiConsole.MarkupLine("[red]Monto inválido.[/]");
             return;
         }
+
+        string concepto = AnsiConsole.Prompt(
+            new TextPrompt<string>("[grey]Descripción / Concepto (opcional, Enter para omitir):[/]")
+                .AllowEmpty()
+        );
+
+        AnsiConsole.WriteLine();
+
+        var options = new[] { "Confirmar Transferencia", "Cancelar" };
+        var selection = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("Seleccione una opción:")
+                .AddChoices(options)
+        );
+
+        if (selection == "Cancelar")
+        {
+            AnsiConsole.MarkupLine("[grey]Transferencia cancelada. Regresando al menú.[/]");
+            return;
+        }
+
+        AnsiConsole.MarkupLine("[grey]Procesando transferencia...[/]");
 
         string result = await _apiClient.TransferirAsync(_cuenta, destino, banco, monto, concepto);
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
@@ -584,7 +702,10 @@ public class CajeroConsole
             }
 
             string? mensaje = root.TryGetProperty("mensaje", out JsonElement m) ? m.GetString() : null;
-            if (!string.IsNullOrEmpty(mensaje)) AnsiConsole.MarkupLine($"[green]{Markup.Escape(mensaje)}[/]");
+            if (!string.IsNullOrEmpty(mensaje)) 
+                AnsiConsole.MarkupLine($"[green]{Markup.Escape(mensaje)}[/]");
+            else
+                AnsiConsole.MarkupLine("[green]¡Transferencia realizada con éxito![/]");
         }
         catch
         {

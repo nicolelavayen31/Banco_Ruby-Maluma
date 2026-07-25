@@ -16,7 +16,7 @@ Guarda la conexión en `Banco_Ruby/appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
-    "BancoRuby": "Host=localhost;Port=5432;Database=\"Banco Ruby\";Username=postgres;Password=root"
+    "BancoRuby": "Host=localhost;Port=5432;Database=\"Banco Ruby\";Username=postgres;Password=123456"
   }
 }
 ```
