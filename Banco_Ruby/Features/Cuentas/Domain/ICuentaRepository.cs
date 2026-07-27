@@ -1,4 +1,4 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using FluentResults;
 
 namespace BancoCenit.Features.Cuentas.Domain
@@ -39,5 +39,30 @@ namespace BancoCenit.Features.Cuentas.Domain
         /// <param name="cancellationToken">Token de cancelación.</param>
         /// <returns>Una tarea asíncrona de confirmación.</returns>
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Inicia una transacción de base de datos de manera asíncrona.
+        /// </summary>
+        Task BeginTransactionAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Confirma la transacción actual de base de datos de manera asíncrona.
+        /// </summary>
+        Task CommitTransactionAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Revierte la transacción actual de base de datos de manera asíncrona.
+        /// </summary>
+        Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Obtiene un registro de idempotencia por su identificador único.
+        /// </summary>
+        Task<Idempotencia?> GetIdempotenciaAsync(string transactionId, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Registra un nuevo token de idempotencia en la base de datos.
+        /// </summary>
+        Task RegistrarIdempotenciaAsync(Idempotencia idempotencia, CancellationToken cancellationToken = default);
     }
 }

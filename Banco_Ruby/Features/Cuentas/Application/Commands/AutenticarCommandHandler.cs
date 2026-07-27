@@ -1,4 +1,4 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using BancoCenit.Features.Notifications.Domain;
 using BancoCenit.Features.Notifications.Infrastructure.Configuration;

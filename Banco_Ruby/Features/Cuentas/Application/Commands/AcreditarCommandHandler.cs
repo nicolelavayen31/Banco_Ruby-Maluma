@@ -1,4 +1,4 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using FluentResults;
 using MediatR;
@@ -55,9 +55,22 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                 CreadoEn = DateTime.UtcNow
             };
 
-            // Registra la auditoría y actualiza la cuenta en la base de datos
-            await _repository.RegistrarAuditoriaAsync(auditoria, cancellationToken);
-            await _repository.UpdateAsync(cuenta, cancellationToken);
+            // Iniciar transacción de base de datos
+            await _repository.BeginTransactionAsync(cancellationToken);
+
+            try
+            {
+                // Registra la auditoría y actualiza la cuenta en la base de datos de manera atómica
+                await _repository.RegistrarAuditoriaAsync(auditoria, cancellationToken);
+                await _repository.UpdateAsync(cuenta, cancellationToken);
+                
+                await _repository.CommitTransactionAsync(cancellationToken);
+            }
+            catch (Exception)
+            {
+                await _repository.RollbackTransactionAsync(cancellationToken);
+                throw;
+            }
 
             string msg = $"Transferencia acreditada exitosamente en Banco Ruby para la cuenta {cuenta.NumeroCuenta}. Nuevo saldo: ${cuenta.Saldo:N2}.";
             return Result.Ok(new OperacionResponse(msg, cuenta.Saldo));

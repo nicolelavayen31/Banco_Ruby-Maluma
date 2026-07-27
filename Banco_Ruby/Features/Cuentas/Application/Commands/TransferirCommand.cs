@@ -9,6 +9,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
     public record TransferirCommand(
         string NumeroCuentaOrigen, 
         string NumeroCuentaDestino, 
-        decimal Monto
+        decimal Monto,
+        string? TransactionId = null
     ) : IRequest<Result<OperacionResponse>>;
 }

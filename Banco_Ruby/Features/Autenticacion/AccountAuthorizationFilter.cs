@@ -1,4 +1,5 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
+using BancoCenit.Features.Cuentas.Application.DTOs;
 using BancoCenit.Infrastructure;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;

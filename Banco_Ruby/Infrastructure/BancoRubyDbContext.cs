@@ -1,4 +1,4 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace BancoCenit.Infrastructure
@@ -31,6 +31,11 @@ namespace BancoCenit.Infrastructure
         /// Colección de registros de auditoría que documentan los movimientos y operaciones bancarias realizadas.
         /// </summary>
         public DbSet<Auditoria> Auditoria => Set<Auditoria>();
+
+        /// <summary>
+        /// Colección de registros de idempotencia de transacciones.
+        /// </summary>
+        public DbSet<Idempotencia> Idempotencias => Set<Idempotencia>();
 
         /// <summary>
         /// Configura el modelo de base de datos utilizando Fluent API.
@@ -84,6 +89,8 @@ namespace BancoCenit.Infrastructure
 
                 entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
 
+                entity.Property(e => e.IntegradorAccountId).HasColumnName("integrador_account_id");
+
                 // Relación uno a muchos: Una cuenta puede registrar múltiples eventos de auditoría (depósitos, retiros, transferencias).
                 entity.HasMany(e => e.Auditorias).WithOne(e => e.Cuenta).HasForeignKey(e => e.CuentaId);
             });
@@ -111,6 +118,16 @@ namespace BancoCenit.Infrastructure
                 // Explicación descriptiva del movimiento con montos formateados.
                 entity.Property(e => e.Descripcion).HasColumnName("descripcion").IsRequired();
 
+                entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
+            });
+
+            // Mapeo y restricciones de la entidad Idempotencia.
+            modelBuilder.Entity<Idempotencia>(entity =>
+            {
+                entity.ToTable("idempotencia");
+                entity.HasKey(e => e.TransactionId);
+                entity.Property(e => e.TransactionId).HasColumnName("transaction_id");
+                entity.Property(e => e.ResponseJson).HasColumnName("response_json").IsRequired();
                 entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
             });
         }

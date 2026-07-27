@@ -1,5 +1,10 @@
-using BancoCenit.Common;
+using System;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using BancoCenit.Features;
+using BancoCenit.Features.Cuentas.Domain.Entities;
+using BancoCenit.Features.Cuentas.Application.DTOs;
 using BancoCenit.Features.Cuentas.Application.Commands;
 using BancoCenit.Features.Cuentas.Application.Queries;
 using FluentResults;
@@ -7,9 +12,8 @@ using MediatR;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
-using System.Text.Json;
 
-namespace BancoCenit.Features.Cuentas.Endpoint
+namespace BancoCenit.Features.Cuentas.Presentation
 {
     /// <summary>
     /// Expone los endpoints de Minimal APIs para la característica de Cuentas en Banco Ruby.
@@ -212,7 +216,15 @@ namespace BancoCenit.Features.Cuentas.Endpoint
                 string cuentaDestino = cd.GetString() ?? string.Empty;
                 decimal monto = m.GetDecimal();
 
-                var result = await mediator.Send(new TransferirCommand(numero, cuentaDestino, monto), cancellationToken);
+                // Extrae TransactionId / CorrelationId opcional del JSON dinámico
+                string? transactionId = null;
+                if (root.TryGetProperty("TransactionId", out JsonElement tId) || root.TryGetProperty("transactionId", out tId) ||
+                    root.TryGetProperty("CorrelationId", out tId) || root.TryGetProperty("correlationId", out tId))
+                {
+                    transactionId = tId.GetString();
+                }
+
+                var result = await mediator.Send(new TransferirCommand(numero, cuentaDestino, monto, transactionId), cancellationToken);
                 if (result.IsFailed)
                 {
                     return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -220,9 +232,9 @@ namespace BancoCenit.Features.Cuentas.Endpoint
 
                 return Results.Ok(new { mensaje = result.Value.Mensaje, saldo = result.Value.SaldoActual });
             }
-            catch
+            catch (Exception ex)
             {
-                return Results.BadRequest(new { error = "Cuerpo inválido para transferencia." });
+                return Results.BadRequest(new { error = $"Cuerpo inválido para transferencia: {ex.Message}" });
             }
         }
 
@@ -231,7 +243,11 @@ namespace BancoCenit.Features.Cuentas.Endpoint
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new TransferirCommand(request.NumeroCuentaOrigen, request.NumeroCuentaDestino, request.Monto), cancellationToken);
+            var result = await mediator.Send(new TransferirCommand(
+                request.NumeroCuentaOrigen, 
+                request.NumeroCuentaDestino, 
+                request.Monto, 
+                request.TransactionId), cancellationToken);
             if (result.IsFailed)
             {
                 return Results.BadRequest(new { error = result.Errors[0].Message });

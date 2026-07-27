@@ -1,7 +1,7 @@
 using BancoCenit.Features.Cuentas.Domain;
 using BancoCenit.Features.Cuentas.Infrastructure.Repositories;
 using BancoCenit.Features.Cuentas.Infrastructure.Gateways;
-using BancoCenit.Features.Cuentas.Endpoint;
+using BancoCenit.Features.Cuentas.Presentation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,8 +24,8 @@ namespace BancoCenit.Features.Cuentas
             // Registra la implementación de CuentaRepository para el acceso a datos.
             services.AddScoped<ICuentaRepository, CuentaRepository>();
 
-            // Registra la implementación del gateway para transferencias salientes.
-            services.AddScoped<ITransferenciaGateway, TransferenciaGateway>();
+            // Registra la implementación del gateway para transferencias salientes con soporte de HttpClient.
+            services.AddHttpClient<ITransferenciaGateway, TransferenciaGateway>();
 
             // Registra MediatR para escanear y registrar automáticamente todos los comandos y manejadores de este ensamblado
             services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CuentasModule).Assembly));

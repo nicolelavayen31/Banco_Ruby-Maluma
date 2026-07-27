@@ -1,4 +1,4 @@
-using BancoCenit.Common;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using BancoCenit.Infrastructure;
 using FluentResults;
@@ -63,6 +63,37 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Repositories
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        public async Task BeginTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            await _db.Database.BeginTransactionAsync(cancellationToken);
+        }
+
+        public async Task CommitTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            if (_db.Database.CurrentTransaction != null)
+            {
+                await _db.Database.CommitTransactionAsync(cancellationToken);
+            }
+        }
+
+        public async Task RollbackTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            if (_db.Database.CurrentTransaction != null)
+            {
+                await _db.Database.RollbackTransactionAsync(cancellationToken);
+            }
+        }
+
+        public async Task<Idempotencia?> GetIdempotenciaAsync(string transactionId, CancellationToken cancellationToken = default)
+        {
+            return await _db.Idempotencias.FirstOrDefaultAsync(i => i.TransactionId == transactionId, cancellationToken);
+        }
+
+        public async Task RegistrarIdempotenciaAsync(Idempotencia idempotencia, CancellationToken cancellationToken = default)
+        {
+            await _db.Idempotencias.AddAsync(idempotencia, cancellationToken);
         }
     }
 }

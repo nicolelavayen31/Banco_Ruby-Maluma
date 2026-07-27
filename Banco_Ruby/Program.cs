@@ -31,6 +31,28 @@ builder.Services.AddNotificationsServices(builder.Configuration);
 // Construye la instancia de WebApplication para configurar el pipeline de solicitudes HTTP.
 WebApplication app = builder.Build();
 
+// Inicializar la base de datos y crear la tabla de idempotencia si no existe
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<BancoRubyDbContext>();
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE TABLE IF NOT EXISTS idempotencia (
+                transaction_id VARCHAR(100) PRIMARY KEY,
+                response_json TEXT NOT NULL,
+                creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            );");
+
+        // Crear columna de mapeo del integrador si no existe
+        await db.Database.ExecuteSqlRawAsync("ALTER TABLE cuenta ADD COLUMN IF NOT EXISTS integrador_account_id VARCHAR(100);");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error al inicializar tabla de idempotencia: {ex.Message}");
+    }
+}
+
 // Configura el pipeline de middleware HTTP de la aplicación (CORS, enrutamiento, manejo de excepciones).
 app.UseApplicationPipeline();
 
