@@ -1,5 +1,6 @@
-using BancoCenit.Common;
-using BancoCenit.Domain.Transferencias;
+using BancoCenit.Features.Cuentas.Domain.Entities;
+using BancoCenit.Features.Cuentas.Domain.Services;
+using BancoCenit.Features.Cuentas.Application.DTOs;
 using Xunit;
 
 namespace BancoRuby.Tests;

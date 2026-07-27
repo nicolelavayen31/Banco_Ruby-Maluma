@@ -1,6 +1,8 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Net.Sockets;
 using Spectre.Console;
+using Usuario_Cliente.Presentation;
 
 namespace Usuario_Cliente.Services;
 
@@ -49,29 +51,29 @@ public class CajeroConsole
     {
         while (true)
         {
-            AnsiConsole.Clear();
-            DrawTitle();
+            ConsoleRenderer.Clear();
+            ConsoleRenderer.DrawBanner(_bankName);
 
-            string[] mainOptions = { "Insertar tarjeta", "Salir" };
-            int mainSelection = PromptMenuOption("Seleccione una opción:", mainOptions);
+            string[] mainOptions = { "Insertar tarjeta", "Salir de este banco" };
+            int mainSelection = ConsoleMenu.PromptMenuOption("Seleccione una opción:", mainOptions);
 
             if (mainSelection == 1)
             {
-                AnsiConsole.Clear();
-                Grid exitGrid = new Grid().AddColumn();
-                exitGrid.AddRow(new Markup($"[bold deepskyblue1]Cerrando sesión en Banco {_bankName}...[/]"));
-                exitGrid.AddRow(new Markup("[grey85]Su tarjeta ha sido retirada con éxito. Regresando a la Red Bancaria...[/]"));
+                ConsoleRenderer.Clear();
                 
-                Panel exitPanel = new Panel(exitGrid)
+                var grid = new Grid().AddColumn();
+                grid.AddRow(new Markup($"{ConsoleTheme.PrimaryBold}Cerrando sesión en Banco {_bankName}...{ConsoleTheme.End}"));
+                grid.AddRow(new Markup($"{ConsoleTheme.Muted}Su tarjeta ha sido retirada con éxito. Regresando a la Red Bancaria...{ConsoleTheme.End}"));
+                
+                var panel = new Panel(grid)
                 {
                     Border = BoxBorder.Rounded,
                     Padding = new Padding(3, 1, 3, 1)
                 };
-                AnsiConsole.Write(exitPanel);
-                AnsiConsole.WriteLine();
+                panel.BorderColor(ConsoleTheme.PrimaryColor);
                 
-                AnsiConsole.MarkupLine("  [grey]Presione Enter para continuar...[/]");
-                Console.ReadLine();
+                AnsiConsole.Write(panel);
+                ConsoleRenderer.WaitForKey();
                 return;
             }
 
@@ -89,23 +91,25 @@ public class CajeroConsole
     /// <returns>True si la autenticación fue exitosa; de lo contrario, False.</returns>
     private async Task<bool> AuthenticateAsync()
     {
-        _cuenta = AnsiConsole.Ask<string>("Ingrese el número de cuenta/tarjeta:");
-        _pin = AnsiConsole.Prompt(new TextPrompt<string>("Ingrese su PIN").Secret());
+        var credentials = ConsoleLogin.ShowLoginForm(_bankName);
+        _cuenta = credentials.Cuenta;
+        _pin = credentials.Pin;
 
-        string authResult = await _apiClient.AutenticarAsync(_cuenta, _pin);
+        string authResult = await ConsoleAnimations.ShowSpinnerAsync(
+            "Verificando credenciales con el servidor central...",
+            () => _apiClient.AutenticarAsync(_cuenta, _pin)
+        );
         
         // Comprueba si el servidor devolvió algún error lógico de PIN o cuenta.
         if (authResult.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase) || authResult.Contains("error", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine("[red]Autenticación fallida.[/]");
-            AnsiConsole.WriteLine(authResult);
-            AnsiConsole.MarkupLine("[grey]Presione Enter para continuar...[/]");
-            Console.ReadLine();
+            ConsoleMessages.ShowError("Autenticación fallida", authResult);
+            ConsoleRenderer.WaitForKey();
             return false;
         }
 
         try
-        {
+         {
             // Parsea la respuesta para obtener los datos del titular e iniciar la sesión con un Session ID único.
             using JsonDocument document = JsonDocument.Parse(authResult);
             _titular = document.RootElement.GetProperty("titular").GetString() ?? string.Empty;
@@ -117,6 +121,7 @@ public class CajeroConsole
             _sessionId = Guid.NewGuid().ToString();
         }
 
+        await ConsoleAnimations.SimulateShortLoadAsync("Sesión autorizada. Accediendo...");
         return true;
     }
 
@@ -127,11 +132,18 @@ public class CajeroConsole
     {
         while (true)
         {
-            AnsiConsole.Clear();
-            DrawSessionHeader();
+            ConsoleRenderer.Clear();
+            await DrawSessionHeaderAsync();
 
-            string[] options = { "Consultar saldo", "Retirar efectivo", "Depositar efectivo", "Consultar movimientos", "Transferir dinero", "Retirar tarjeta" };
-            int selected = PromptMenuOption("Seleccione una opción:", options);
+            string[] options = { 
+                "Consultar saldo", 
+                "Retirar efectivo", 
+                "Depositar efectivo", 
+                "Consultar movimientos", 
+                "Transferir dinero", 
+                "Retirar tarjeta" 
+            };
+            int selected = ConsoleMenu.PromptMenuOption("Seleccione una transacción a realizar:", options);
 
             switch (selected)
             {
@@ -154,93 +166,62 @@ public class CajeroConsole
                     return; // Retira la tarjeta y sale de la sesión
             }
 
-            AnsiConsole.MarkupLine("[grey]Presione Enter para continuar...[/]");
-            Console.ReadLine();
+            ConsoleRenderer.WaitForKey();
         }
     }
 
     /// <summary>
-    /// Dibuja el panel de título principal del cajero automático.
-    /// </summary>
-    private void DrawTitle()
-    {
-        Grid headerGrid = new Grid();
-        headerGrid.AddColumn();
-        headerGrid.AddColumn();
-        headerGrid.AddRow(
-            new Markup("[white]  /\\\n /__\\\n ||||\n======[/]"),
-            new Markup($"\n [bold deepskyblue1]BANCO {_bankPrefix}[/]\n [grey85]Cajero Automático Activo[/]")
-        );
-
-        Panel panel = new Panel(headerGrid)
-        {
-            Border = BoxBorder.Ascii,
-            Padding = new Padding(1, 0, 1, 0)
-        };
-
-        AnsiConsole.Write(panel);
-        AnsiConsole.WriteLine();
-    }
-
-    /// <summary>
     /// Dibuja la cabecera informativa de la sesión activa en el cajero automático.
+    /// Realiza pings no bloqueantes a los puertos de red de forma asíncrona.
     /// </summary>
-    private void DrawSessionHeader()
+    private async Task DrawSessionHeaderAsync()
     {
-        Table headerTable = new Table().Expand().HideHeaders();
-        headerTable.AddColumn(new TableColumn("Info").NoWrap());
-        headerTable.AddColumn(new TableColumn("Valor"));
-        headerTable.AddRow("[bold green]Sesion activa:[/]", _sessionId);
-        headerTable.AddRow("[bold green]Tarjeta:[/]", MaskCard(_cuenta));
-        headerTable.AddRow("[bold green]Cuenta:[/]", _cuenta);
-        headerTable.AddRow("[bold green]Titular:[/]", _titular);
-
-        Panel panel = new Panel(headerTable)
-            .Border(BoxBorder.Double)
-            .Header($"[bold cyan]CAJERO AUTOMATICO BANCO {_bankPrefix}[/]");
-
-        AnsiConsole.Write(panel);
-        AnsiConsole.WriteLine();
+        var status = await CheckNetworkStatusAsync();
+        ConsoleMenu.DrawSessionDashboard(
+            _bankName,
+            _titular,
+            _cuenta,
+            _sessionId,
+            status.ServerOnline,
+            status.IntegratorOnline
+        );
     }
 
     /// <summary>
-    /// Ofusca los dígitos de la tarjeta dejando únicamente visibles los últimos 4 números.
+    /// Realiza un ping TCP ligero y rápido para validar la conectividad de los servidores.
     /// </summary>
-    private static string MaskCard(string cardNumber)
+    private async Task<(bool ServerOnline, bool IntegratorOnline)> CheckNetworkStatusAsync()
     {
-        if (string.IsNullOrWhiteSpace(cardNumber) || cardNumber.Length <= 4)
-            return cardNumber;
+        bool serverOnline = false;
+        bool integratorOnline = false;
+        
+        int bankPort = _bankPrefix == "RUBY" ? 5000 : 5002;
 
-        string visible = cardNumber[^4..];
-        return new string('*', cardNumber.Length - 4) + visible;
-    }
+        try
+        {
+            using var tcpClient = new TcpClient();
+            var connectTask = tcpClient.ConnectAsync("localhost", bankPort);
+            if (await Task.WhenAny(connectTask, Task.Delay(150)) == connectTask)
+            {
+                await connectTask;
+                serverOnline = tcpClient.Connected;
+            }
+        }
+        catch { }
 
-    /// <summary>
-    /// Formatea el número de cuenta local para mostrar su banco origen en las etiquetas.
-    /// </summary>
-    private string FormatAccountLabel(string accountNumber)
-    {
-        if (string.IsNullOrWhiteSpace(accountNumber))
-            return string.Empty;
+        try
+        {
+            using var tcpClient = new TcpClient();
+            var connectTask = tcpClient.ConnectAsync("localhost", 7000);
+            if (await Task.WhenAny(connectTask, Task.Delay(150)) == connectTask)
+            {
+                await connectTask;
+                integratorOnline = tcpClient.Connected;
+            }
+        }
+        catch { }
 
-        return accountNumber.StartsWith($"{_bankPrefix}-", StringComparison.OrdinalIgnoreCase)
-            ? accountNumber
-            : $"{_bankPrefix}-{accountNumber[^4..]}";
-    }
-
-    /// <summary>
-    /// Presenta de forma interactiva una lista de opciones y retorna el índice de la opción seleccionada.
-    /// </summary>
-    private static int PromptMenuOption(string promptMessage, string[] options)
-    {
-        var prompt = new SelectionPrompt<string>()
-            .Title(promptMessage)
-            .PageSize(10)
-            .MoreChoicesText("<Seleccione una opción adicional>")
-            .AddChoices(options);
-
-        string selected = AnsiConsole.Prompt(prompt);
-        return Array.IndexOf(options, selected);
+        return (serverOnline, integratorOnline);
     }
 
     /// <summary>
@@ -248,10 +229,17 @@ public class CajeroConsole
     /// </summary>
     private async Task ConsultarSaldoAsync()
     {
-        string result = await _apiClient.ConsultarSaldoAsync(_cuenta);
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Consulta de Saldo");
+
+        string result = await ConsoleAnimations.ShowSpinnerAsync(
+            "Consultando saldos y cuentas activas...",
+            () => _apiClient.ConsultarSaldoAsync(_cuenta)
+        );
+
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+            ConsoleMessages.ShowError("No se pudo obtener el saldo de la cuenta", result);
             return;
         }
 
@@ -262,28 +250,18 @@ public class CajeroConsole
 
             if (root.TryGetProperty("error", out JsonElement error))
             {
-                AnsiConsole.MarkupLine($"[red]ERROR: {Markup.Escape(error.GetString() ?? string.Empty)}[/]");
+                ConsoleMessages.ShowError("Error devuelto por la entidad bancaria", error.GetString());
                 return;
             }
 
             decimal saldo = root.GetProperty("saldo").GetDecimal();
             string titular = root.GetProperty("titular").GetString() ?? string.Empty;
 
-            AnsiConsole.Clear();
-            AnsiConsole.Write(new Rule("[bold deepskyblue1]CONSULTA DE SALDO[/]").LeftJustified());
-            AnsiConsole.WriteLine();
-
-            Table table = new Table().Border(TableBorder.Rounded).Expand();
-            table.AddColumn("[bold white]Tarjeta[/]");
-            table.AddColumn("[bold white]Titular[/]");
-            table.AddColumn("[bold white]Saldo Disponible[/]");
-            table.AddRow(MaskCard(_cuenta), Markup.Escape(titular), $"[green]${saldo:N2}[/]");
-            AnsiConsole.Write(table);
-            AnsiConsole.WriteLine();
+            ConsolePanels.ShowAccountCard(_bankName, titular, _cuenta, saldo);
         }
-        catch
+        catch (Exception ex)
         {
-            AnsiConsole.WriteLine(result);
+            ConsoleMessages.ShowError("Excepción al procesar datos del saldo", ex.Message);
         }
     }
 
@@ -292,29 +270,40 @@ public class CajeroConsole
     /// </summary>
     private async Task DepositarAsync()
     {
-        decimal monto = AnsiConsole.Ask<decimal>($"Monto a depositar (máx {LIMITE_DEPOSITO:N0}):");
-        if (monto <= 0)
-        {
-            AnsiConsole.MarkupLine("[red]Monto inválido.[/]");
-            return;
-        }
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Depósito de Efectivo");
+
+        decimal monto = AnsiConsole.Prompt(
+            new TextPrompt<decimal>($"  {ConsoleTheme.IconBalance} [bold white]Monto a depositar (máx {LIMITE_DEPOSITO:N0}):[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
+                .ValidationErrorMessage($"{ConsoleTheme.Error} {ConsoleTheme.IconError} Ingrese un monto numérico válido mayor a 0{ConsoleTheme.End}")
+                .Validate(input => input > 0)
+        );
 
         if (monto > LIMITE_DEPOSITO)
         {
-            AnsiConsole.MarkupLine($"[red]ERROR: Límite de depósito {LIMITE_DEPOSITO:N0}.[/]");
+            ConsoleMessages.ShowError($"Límite de depósito excedido. El monto máximo permitido es ${LIMITE_DEPOSITO:N0}.");
             return;
         }
 
-        if (!AnsiConsole.Confirm("¿Desea continuar con el depósito?"))
+        var confirm = AnsiConsole.Prompt(
+            new ConfirmationPrompt($"  {ConsoleTheme.Warning} ¿Desea confirmar el depósito de [bold yellow]${monto:N2}[/]?{ConsoleTheme.End}")
+        );
+
+        if (!confirm)
         {
-            AnsiConsole.MarkupLine("[grey]Depósito cancelado.[/]");
+            ConsoleMessages.ShowWarning("Operación de depósito cancelada por el usuario.");
             return;
         }
 
-        string result = await _apiClient.DepositarAsync(_cuenta, monto);
+        string result = await ConsoleAnimations.ShowSpinnerAsync(
+            "Registrando depósito y acreditando fondos...",
+            () => _apiClient.DepositarAsync(_cuenta, monto)
+        );
+
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+            ConsoleMessages.ShowError("No se pudo realizar el depósito", result);
             return;
         }
 
@@ -324,7 +313,7 @@ public class CajeroConsole
             JsonElement root = doc.RootElement;
             if (root.TryGetProperty("error", out JsonElement err))
             {
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(err.GetString() ?? string.Empty)}[/]");
+                ConsoleMessages.ShowError("Error del sistema de depósitos", err.GetString());
                 return;
             }
 
@@ -332,9 +321,7 @@ public class CajeroConsole
             {
                 string titleText = title.GetString() ?? string.Empty;
                 string detailText = root.TryGetProperty("detail", out JsonElement detail) ? detail.GetString() ?? string.Empty : string.Empty;
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(titleText)}[/]");
-                if (!string.IsNullOrEmpty(detailText))
-                    AnsiConsole.MarkupLine($"[red]{Markup.Escape(detailText)}[/]");
+                ConsoleMessages.ShowError(titleText, detailText);
                 return;
             }
 
@@ -345,22 +332,14 @@ public class CajeroConsole
             else if (root.TryGetProperty("Saldo", out JsonElement s2))
                 saldo = s2.GetDecimal();
 
-            if (!string.IsNullOrEmpty(mensaje))
-                AnsiConsole.MarkupLine($"[green]{Markup.Escape(mensaje)}[/]");
-            else
-                AnsiConsole.MarkupLine($"[grey]Respuesta del servidor:[/] {Markup.Escape(result)}");
-
-            AnsiConsole.MarkupLine($"[bold]Monto depositado:[/] [yellow]${monto:N2}[/]");
-            AnsiConsole.MarkupLine($"[bold]Saldo actual:[/] [yellow]${saldo:N2}[/]");
-        }
-        catch (JsonException)
-        {
-            AnsiConsole.WriteLine(result);
+            ConsoleRenderer.Clear();
+            ConsoleRenderer.DrawScreenTitle("Comprobante de Depósito");
+            ConsolePanels.ShowDepositReceipt(_cuenta, monto, saldo);
+            ConsoleMessages.ShowSuccess(mensaje ?? "El depósito se ha realizado exitosamente.");
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error al procesar respuesta: {Markup.Escape(ex.Message)}[/]");
-            AnsiConsole.WriteLine(result);
+            ConsoleMessages.ShowError("Error de serialización de respuesta", ex.Message);
         }
     }
 
@@ -369,31 +348,43 @@ public class CajeroConsole
     /// </summary>
     private async Task RetirarAsync()
     {
-        decimal monto = AnsiConsole.Ask<decimal>($"Monto a retirar (máx {LIMITE_RETIRO:N0}):");
-        if (monto <= 0)
-        {
-            AnsiConsole.MarkupLine("[red]Monto inválido.[/]");
-            return;
-        }
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Retiro de Efectivo");
+
+        decimal monto = AnsiConsole.Prompt(
+            new TextPrompt<decimal>($"  {ConsoleTheme.IconBalance} [bold white]Monto a retirar (máx {LIMITE_RETIRO:N0}):[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
+                .ValidationErrorMessage($"{ConsoleTheme.Error} {ConsoleTheme.IconError} Ingrese un monto numérico válido mayor a 0{ConsoleTheme.End}")
+                .Validate(input => input > 0)
+        );
 
         if (monto > LIMITE_RETIRO)
         {
-            AnsiConsole.MarkupLine($"[red]ERROR: Límite de retiro {LIMITE_RETIRO:N0}.[/]");
+            ConsoleMessages.ShowError($"Límite de retiro excedido. El monto máximo permitido es ${LIMITE_RETIRO:N0}.");
             return;
         }
 
         const decimal comision = 0.41m;
-        AnsiConsole.MarkupLine($"[yellow]Se cobrará una comisión de ${comision:N2}.[/]");
-        if (!AnsiConsole.Confirm("¿Desea continuar?"))
+        ConsoleMessages.ShowWarning($"Se cobrará una comisión fija transaccional de [bold red]${comision:N2}[/].");
+
+        var confirm = AnsiConsole.Prompt(
+            new ConfirmationPrompt($"  {ConsoleTheme.Warning} ¿Desea confirmar el retiro de [bold yellow]${monto:N2}[/]?{ConsoleTheme.End}")
+        );
+
+        if (!confirm)
         {
-            AnsiConsole.MarkupLine("[grey]Retiro cancelado.[/]");
+            ConsoleMessages.ShowWarning("Operación de retiro cancelada por el usuario.");
             return;
         }
 
-        string result = await _apiClient.RetirarAsync(_cuenta, monto);
+        string result = await ConsoleAnimations.ShowSpinnerAsync(
+            "Validando cupo transaccional y debitando saldo...",
+            () => _apiClient.RetirarAsync(_cuenta, monto)
+        );
+
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+            ConsoleMessages.ShowError("No se pudo procesar el retiro", result);
             return;
         }
 
@@ -403,7 +394,7 @@ public class CajeroConsole
             JsonElement root = doc.RootElement;
             if (root.TryGetProperty("error", out JsonElement err))
             {
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(err.GetString() ?? string.Empty)}[/]");
+                ConsoleMessages.ShowError("Error del sistema de retiros", err.GetString());
                 return;
             }
 
@@ -411,9 +402,7 @@ public class CajeroConsole
             {
                 string titleText = title.GetString() ?? string.Empty;
                 string detailText = root.TryGetProperty("detail", out JsonElement detail) ? detail.GetString() ?? string.Empty : string.Empty;
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(titleText)}[/]");
-                if (!string.IsNullOrEmpty(detailText))
-                    AnsiConsole.MarkupLine($"[red]{Markup.Escape(detailText)}[/]");
+                ConsoleMessages.ShowError(titleText, detailText);
                 return;
             }
 
@@ -424,23 +413,14 @@ public class CajeroConsole
             else if (root.TryGetProperty("Saldo", out JsonElement s2))
                 saldo = s2.GetDecimal();
 
-            if (!string.IsNullOrEmpty(mensaje))
-                AnsiConsole.MarkupLine($"[green]{Markup.Escape(mensaje)}[/]");
-            else
-                AnsiConsole.MarkupLine($"[grey]Respuesta del servidor:[/] {Markup.Escape(result)}");
-
-            AnsiConsole.MarkupLine($"[bold]Monto retirado:[/] [yellow]${monto:N2}[/]");
-            AnsiConsole.MarkupLine($"[bold]Comisión:[/] [yellow]${comision:N2}[/]");
-            AnsiConsole.MarkupLine($"[bold]Saldo actual:[/] [yellow]${saldo:N2}[/]");
-        }
-        catch (JsonException)
-        {
-            AnsiConsole.WriteLine(result);
+            ConsoleRenderer.Clear();
+            ConsoleRenderer.DrawScreenTitle("Comprobante de Retiro");
+            ConsolePanels.ShowWithdrawalReceipt(_cuenta, monto, comision, saldo);
+            ConsoleMessages.ShowSuccess(mensaje ?? "El efectivo se ha debitado correctamente.");
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]Error al procesar respuesta: {Markup.Escape(ex.Message)}[/]");
-            AnsiConsole.WriteLine(result);
+            ConsoleMessages.ShowError("Error de procesamiento de respuesta", ex.Message);
         }
     }
 
@@ -450,10 +430,17 @@ public class CajeroConsole
     /// </summary>
     private async Task MostrarHistorialAsync()
     {
-        string result = await _apiClient.ObtenerHistorialAsync(_cuenta);
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Consulta de Movimientos");
+
+        string result = await ConsoleAnimations.ShowSpinnerAsync(
+            "Obteniendo historial transaccional...",
+            () => _apiClient.ObtenerHistorialAsync(_cuenta)
+        );
+
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+            ConsoleMessages.ShowError("No se pudo obtener el historial", result);
             return;
         }
 
@@ -463,38 +450,16 @@ public class CajeroConsole
             JsonElement root = doc.RootElement;
             if (root.TryGetProperty("error", out JsonElement err))
             {
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(err.GetString() ?? string.Empty)}[/]");
+                ConsoleMessages.ShowError("Error al listar movimientos", err.GetString());
                 return;
             }
 
             string titular = root.GetProperty("titular").GetString() ?? string.Empty;
             List<JsonElement> historial = root.GetProperty("historial").EnumerateArray().ToList();
 
-            AnsiConsole.Clear();
-            
-            AnsiConsole.Write(new Rule("[bold deepskyblue1]CONSULTA DE MOVIMIENTOS[/]").LeftJustified());
-            AnsiConsole.WriteLine();
-
-            Grid criteriaGrid = new Grid().AddColumns(3);
-            criteriaGrid.AddRow(
-                new Markup($"[grey]Número de Tarjeta:[/] [bold white]{MaskCard(_cuenta)}[/]"),
-                new Markup($"[grey]Titular:[/] [bold white]{Markup.Escape(titular)}[/]"),
-                new Markup($"[grey]Búsqueda:[/] [bold green][[Todos]][/]")
-            );
-            
-            Panel criteriaPanel = new Panel(criteriaGrid)
-            {
-                Header = new PanelHeader("[bold deepskyblue1] Criterios de Búsqueda [/]"),
-                Border = BoxBorder.Rounded,
-                Padding = new Padding(2, 0, 2, 0)
-            };
-
-            AnsiConsole.Write(criteriaPanel);
-            AnsiConsole.WriteLine();
-
             if (historial.Count == 0)
             {
-                AnsiConsole.MarkupLine("[yellow]No hay movimientos registrados para esta cuenta.[/]");
+                ConsoleMessages.ShowWarning("No se encontraron movimientos registrados en esta cuenta.");
                 return;
             }
 
@@ -565,58 +530,13 @@ public class CajeroConsole
 
             decimal saldoInicial = currentRunning;
 
-            Table table = new Table()
-                .Border(TableBorder.Rounded)
-                .Expand();
-
-            table.AddColumn(new TableColumn("[bold white]Fecha / Hora[/]").Centered());
-            table.AddColumn(new TableColumn("[bold white]Descripción[/]").LeftAligned());
-            table.AddColumn(new TableColumn("[bold white]Tipo[/]").Centered());
-            table.AddColumn(new TableColumn("[bold white]Monto[/]").RightAligned());
-            table.AddColumn(new TableColumn("[bold white]Saldo[/]").RightAligned());
-
-            foreach (var t in txs)
-            {
-                string color = t.IsCredit ? "green" : "red";
-                string sign = t.IsCredit ? "+" : "-";
-                string amountDisplay = $"{sign}${t.Monto:N2}";
-
-                table.AddRow(
-                    $"[grey85]{t.Fecha:dd/MM/yyyy HH:mm}[/]",
-                    $"[white]{Markup.Escape(t.Descripcion)}[/]",
-                    $"[{color}]{t.Tipo}[/]",
-                    $"[{color}]{amountDisplay}[/]",
-                    $"[grey93]${t.Saldo:N2}[/]"
-                );
-            }
-
-            AnsiConsole.Write(table);
-            AnsiConsole.WriteLine();
-
-            Grid summaryGrid = new Grid().AddColumns(4);
-            summaryGrid.AddRow(
-                new Markup($"[grey]Saldo Inicial:[/] [white]${saldoInicial:N2}[/]"),
-                new Markup($"[grey]Total Débitos:[/] [red]-${totalDebitos:N2}[/]"),
-                new Markup($"[grey]Total Créditos:[/] [green]+${totalCreditos:N2}[/]"),
-                new Markup($"[grey]Saldo Final:[/] [bold deepskyblue1]${saldoFinal:N2}[/]")
-            );
-
-            Panel summaryPanel = new Panel(summaryGrid)
-            {
-                Header = new PanelHeader("[bold deepskyblue1] Resumen del Período [/]"),
-                Border = BoxBorder.Rounded,
-                Padding = new Padding(2, 0, 2, 0)
-            };
-            AnsiConsole.Write(summaryPanel);
-            AnsiConsole.WriteLine();
-
-            AnsiConsole.MarkupLine("  [grey]ENTER[/] Volver al Menú Principal");
+            ConsoleRenderer.Clear();
+            ConsoleRenderer.DrawScreenTitle("Consulta de Movimientos");
+            ConsoleTables.DrawMovementsTable(txs, saldoInicial, totalDebitos, totalCreditos, saldoFinal);
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[red]EXCEPCIÓN EN RENDERIZADO: {Markup.Escape(ex.Message)}[/]");
-            AnsiConsole.WriteLine(ex.ToString());
-            AnsiConsole.WriteLine(result);
+            ConsoleMessages.ShowError("Excepción al estructurar tabla de movimientos", ex.Message);
         }
     }
 
@@ -625,69 +545,74 @@ public class CajeroConsole
     /// </summary>
     private async Task TransferirAsync()
     {
-        AnsiConsole.Clear();
-        AnsiConsole.Write(new Rule("[bold deepskyblue1]NUEVA TRANSFERENCIA[/]").LeftJustified());
-        AnsiConsole.WriteLine();
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Nueva Transferencia");
 
-        AnsiConsole.MarkupLine("[grey]Desde la Tarjeta:[/]");
-        AnsiConsole.MarkupLine($"[bold white]{MaskCard(_cuenta)} - {_titular}[/]");
+        var sourceGrid = new Grid().AddColumn();
+        sourceGrid.AddRow(new Markup($"{ConsoleTheme.Muted}Tarjeta de Origen:{ConsoleTheme.End} {ConsoleTheme.AccentBold}{ConsoleRenderer.MaskCard(_cuenta)}{ConsoleTheme.End}"));
+        sourceGrid.AddRow(new Markup($"{ConsoleTheme.Muted}Ordenante:{ConsoleTheme.End} {ConsoleTheme.AccentBold}{_titular}{ConsoleTheme.End}"));
+        
+        var sourcePanel = new Panel(sourceGrid)
+        {
+            Border = BoxBorder.Rounded
+        };
+        sourcePanel.BorderColor(ConsoleTheme.PrimaryColor);
+        AnsiConsole.Write(sourcePanel);
         AnsiConsole.WriteLine();
 
         string destino = AnsiConsole.Prompt(
-            new TextPrompt<string>("[grey]A la Cuenta / Tarjeta:[/]")
-                .PromptStyle("bold white")
-                .ValidationErrorMessage("[red]Por favor ingrese una cuenta válida[/]")
+            new TextPrompt<string>($"  {ConsoleTheme.IconCard} [bold white]Número de Cuenta/Tarjeta de Destino:[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
+                .ValidationErrorMessage($"{ConsoleTheme.Error} {ConsoleTheme.IconError} Ingrese un número de destino válido{ConsoleTheme.End}")
+                .Validate(input => !string.IsNullOrWhiteSpace(input))
         );
 
-        if (string.IsNullOrWhiteSpace(destino))
-        {
-            AnsiConsole.MarkupLine("[red]Cuenta destino inválida.[/]");
-            return;
-        }
-
         string banco = AnsiConsole.Prompt(
-            new TextPrompt<string>("[grey]Banco Destino (opcional, Enter para omitir):[/]")
+            new TextPrompt<string>($"  {ConsoleTheme.IconBank} [bold white]Banco de Destino (Enter si es del mismo banco):[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
                 .AllowEmpty()
         );
 
         decimal monto = AnsiConsole.Prompt(
-            new TextPrompt<decimal>("[grey]Monto ($):[/]")
-                .PromptStyle("yellow")
-                .ValidationErrorMessage("[red]Por favor ingrese un monto válido mayor a 0[/]")
+            new TextPrompt<decimal>($"  {ConsoleTheme.IconBalance} [bold white]Monto a Transferir ($):[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
+                .ValidationErrorMessage($"{ConsoleTheme.Error} {ConsoleTheme.IconError} Ingrese un monto válido mayor a 0{ConsoleTheme.End}")
+                .Validate(input => input > 0)
         );
 
-        if (monto <= 0)
-        {
-            AnsiConsole.MarkupLine("[red]Monto inválido.[/]");
-            return;
-        }
-
         string concepto = AnsiConsole.Prompt(
-            new TextPrompt<string>("[grey]Descripción / Concepto (opcional, Enter para omitir):[/]")
+            new TextPrompt<string>($"  {ConsoleTheme.IconInfo} [bold white]Concepto / Motivo de Transferencia:[/] ")
+                .PromptStyle(Style.Parse(ConsoleTheme.PrimaryHex))
                 .AllowEmpty()
         );
 
-        AnsiConsole.WriteLine();
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Nueva Transferencia - Confirmación");
+        ConsolePanels.ShowTransferDetails(banco, _cuenta, destino, monto, concepto);
 
-        var options = new[] { "Confirmar Transferencia", "Cancelar" };
-        var selection = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("Seleccione una opción:")
-                .AddChoices(options)
+        var confirm = AnsiConsole.Prompt(
+            new ConfirmationPrompt($"  {ConsoleTheme.Warning} ¿Desea proceder a enviar esta transferencia?{ConsoleTheme.End}")
         );
 
-        if (selection == "Cancelar")
+        if (!confirm)
         {
-            AnsiConsole.MarkupLine("[grey]Transferencia cancelada. Regresando al menú.[/]");
+            ConsoleMessages.ShowWarning("Transferencia cancelada por el usuario.");
             return;
         }
 
-        AnsiConsole.MarkupLine("[grey]Procesando transferencia...[/]");
+        // Mostrar animación de barra de progreso que emula el Clearing Interbancario
+        ConsoleRenderer.Clear();
+        ConsoleRenderer.DrawScreenTitle("Procesando Clearing");
+        await ConsoleAnimations.ShowProgressBarAsync("Enviando fondos a través del switch interbancario central...");
 
-        string result = await _apiClient.TransferirAsync(_cuenta, destino, banco, monto, concepto);
+        string result = await ConsoleAnimations.ShowSpinnerAsync(
+            "Esperando confirmación de fondos de la cámara de compensación...",
+            () => _apiClient.TransferirAsync(_cuenta, destino, banco, monto, concepto)
+        );
+
         if (result.StartsWith("ERROR:", StringComparison.OrdinalIgnoreCase))
         {
-            AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+            ConsoleMessages.ShowError("La transferencia no se pudo completar", result);
             return;
         }
 
@@ -697,19 +622,16 @@ public class CajeroConsole
             JsonElement root = doc.RootElement;
             if (root.TryGetProperty("error", out JsonElement err))
             {
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(err.GetString() ?? string.Empty)}[/]");
+                ConsoleMessages.ShowError("La transacción fue rechazada", err.GetString());
                 return;
             }
 
             string? mensaje = root.TryGetProperty("mensaje", out JsonElement m) ? m.GetString() : null;
-            if (!string.IsNullOrEmpty(mensaje)) 
-                AnsiConsole.MarkupLine($"[green]{Markup.Escape(mensaje)}[/]");
-            else
-                AnsiConsole.MarkupLine("[green]¡Transferencia realizada con éxito![/]");
+            ConsoleMessages.ShowSuccess(mensaje ?? "¡Transferencia realizada con éxito a través del switch!");
         }
         catch
         {
-            AnsiConsole.WriteLine(result);
+            ConsoleMessages.ShowSuccess("¡Transferencia realizada con éxito!");
         }
     }
 }
