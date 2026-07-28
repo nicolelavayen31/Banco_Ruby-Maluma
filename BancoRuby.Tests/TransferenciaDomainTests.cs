@@ -10,8 +10,10 @@ public class TransferenciaDomainTests
     [Fact]
     public async Task ReversaElMontoCuandoElDestinoFalla()
     {
-        var origen = new Cuenta { NumeroCuenta = "1001", Saldo = 1000m, Estado = true };
-        var destino = new Cuenta { NumeroCuenta = "2002", Saldo = 50m, Estado = true };
+        var origen = new Cuenta { NumeroCuenta = "1001", Estado = true };
+        origen.Acreditar(1000m);
+        var destino = new Cuenta { NumeroCuenta = "2002", Estado = true };
+        destino.Acreditar(50m);
         var request = new TransferenciaRequest("1001", "2002", 200m);
 
         var resultado = await TransferenciaService.EjecutarTransferenciaAsync(origen, destino, request, () => throw new TimeoutException("timeout"));

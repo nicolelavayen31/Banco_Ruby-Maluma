@@ -14,7 +14,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
     /// </summary>
     public class RetirarCommandHandler : IRequestHandler<RetirarCommand, Result<OperacionResponse>>
     {
-        private const decimal COMISION = 0.41m;
+        private const decimal COMISION = 0m;
         private readonly ICuentaRepository _repository;
         private readonly IEmailService _emailService;
         private readonly BrevoOptions _brevoOptions;
@@ -62,7 +62,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             }
 
             // Debita los fondos
-            cuenta.Saldo -= totalDebitado;
+            cuenta.Debitar(totalDebitado);
 
             var auditoria = new Auditoria
             {
@@ -70,14 +70,14 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                 NumeroCuenta = cuenta.NumeroCuenta,
                 Tipo = "Retiro",
                 Monto = totalDebitado,
-                Descripcion = $"Se debitó de la cuenta ${command.Monto:N2} más comisión de ${COMISION:N2}.",
+                Descripcion = $"Se debitó de la cuenta ${command.Monto:N2}.",
                 CreadoEn = DateTime.UtcNow
             };
 
             await _repository.RegistrarAuditoriaAsync(auditoria, cancellationToken);
             await _repository.UpdateAsync(cuenta, cancellationToken);
 
-            string msg = $"Retiro de ${command.Monto:N2} realizado con comisión de ${COMISION:N2}.";
+            string msg = $"Retiro de ${command.Monto:N2} realizado.";
             string titularNombre = cuenta.Usuario?.Nombre ?? "Cliente";
 
             // Enviar correo de notificación de retiro

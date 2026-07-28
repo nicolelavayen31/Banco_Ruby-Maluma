@@ -42,7 +42,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             Cuenta cuenta = cuentaResult.Value;
 
             // Incrementa el saldo disponible de la cuenta
-            cuenta.Saldo += command.Monto;
+            cuenta.Acreditar(command.Monto);
 
             // Instancia el registro de auditoría con la descripción del origen de los fondos.
             var auditoria = new Auditoria

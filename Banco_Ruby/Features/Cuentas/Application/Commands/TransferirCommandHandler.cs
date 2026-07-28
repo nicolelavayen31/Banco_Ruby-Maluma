@@ -85,12 +85,16 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
 
                 var request = new TransferenciaRequest(command.NumeroCuentaOrigen, command.NumeroCuentaDestino, command.Monto, command.TransactionId);
 
+                // Resolver los UUIDs de cuenta asignados por el integrador
+                string cuentaOrigenUuid = origen.IntegradorAccountId ?? origen.NumeroCuenta;
+                string cuentaDestinoUuid = destino?.IntegradorAccountId ?? command.NumeroCuentaDestino;
+
                 // Ejecuta la transferencia mediante el servicio de dominio
                 TransferenciaExecutionResult resultado = await TransferenciaService.EjecutarTransferenciaAsync(
                     origen,
                     destino,
                     request,
-                    () => _gateway.EnviarAsync(origen.NumeroCuenta, command.NumeroCuentaDestino, command.Monto, cancellationToken)
+                    () => _gateway.EnviarAsync(cuentaOrigenUuid, cuentaDestinoUuid, command.Monto, cancellationToken)
                 );
 
                 if (!resultado.IsSuccess)
@@ -99,15 +103,18 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                     return Result.Fail<OperacionResponse>(resultado.Error!);
                 }
 
+                decimal comision = destino is null ? 0.41m : 0m;
+                decimal totalDebitado = command.Monto + comision;
+
                 // Registrar auditoría para emisor
                 var auditOrigen = new Auditoria
                 {
                     CuentaId = origen.CuentaId,
                     NumeroCuenta = origen.NumeroCuenta,
                     Tipo = "Transferencia enviada",
-                    Monto = command.Monto,
+                    Monto = totalDebitado,
                     Descripcion = destino is null
-                        ? $"Se envió transferencia interbancaria de ${command.Monto:N2} a la cuenta externa {command.NumeroCuentaDestino}."
+                        ? $"Se envió transferencia interbancaria de ${command.Monto:N2} a la cuenta externa {command.NumeroCuentaDestino} más comisión de $0.41."
                         : $"Se envió transferencia de ${command.Monto:N2} a la cuenta {destino.NumeroCuenta}.",
                     CreadoEn = DateTime.UtcNow
                 };

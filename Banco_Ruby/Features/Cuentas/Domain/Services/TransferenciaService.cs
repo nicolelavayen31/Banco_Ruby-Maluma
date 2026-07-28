@@ -71,8 +71,12 @@ namespace BancoCenit.Features.Cuentas.Domain.Services
                 return TransferenciaExecutionResult.Failure("El monto debe ser mayor que cero.");
             }
 
-            // Valida que el emisor tenga saldo suficiente para cubrir el monto.
-            if (request.Monto > origen.Saldo)
+            // Si es interbancaria (destino es nulo), se cobra una comisión de 0.41m.
+            decimal comision = destino is null ? 0.41m : 0m;
+            decimal totalDebitado = request.Monto + comision;
+
+            // Valida que el emisor tenga saldo suficiente para cubrir el monto + comisión.
+            if (totalDebitado > origen.Saldo)
             {
                 return TransferenciaExecutionResult.Failure("Fondos insuficientes en la cuenta origen.");
             }
@@ -82,12 +86,12 @@ namespace BancoCenit.Features.Cuentas.Domain.Services
             decimal? saldoDestinoAntes = destino?.Saldo;
 
             // Se debita el monto de la cuenta de origen.
-            origen.Saldo -= request.Monto;
+            origen.Debitar(totalDebitado);
 
             // Si la cuenta destino es local, se le acredita el monto.
             if (destino is not null)
             {
-                destino.Saldo += request.Monto;
+                destino.Acreditar(request.Monto);
             }
 
             try
@@ -99,10 +103,10 @@ namespace BancoCenit.Features.Cuentas.Domain.Services
             catch (Exception ex)
             {
                 // Revierte el saldo a su estado original si ocurre un fallo de red o rechazo de pasarela.
-                origen.Saldo = saldoOrigenAntes;
+                origen.RestaurarSaldo(saldoOrigenAntes);
                 if (destino is not null && saldoDestinoAntes.HasValue)
                 {
-                    destino.Saldo = saldoDestinoAntes.Value;
+                    destino.RestaurarSaldo(saldoDestinoAntes.Value);
                 }
                 return TransferenciaExecutionResult.Failure($"Transacción fallida. Se devolvió el monto a la cuenta {origen.NumeroCuenta}. Detalle: {ex.Message}");
             }

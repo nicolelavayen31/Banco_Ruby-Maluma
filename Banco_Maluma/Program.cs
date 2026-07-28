@@ -30,12 +30,9 @@ if (!string.IsNullOrEmpty(connStr))
     await BancoMaluma.Infrastructure.Persistence.DbInitializer.InitializeAsync(connStr);
 }
 
-// Configura la UI interactiva de documentación OpenAPI (Scalar) únicamente en entornos de desarrollo.
-if (app.Environment.IsDevelopment())
-{
-    app.MapOpenApi();
-    app.MapScalarApiReference();
-}
+// Configura la UI interactiva de documentación OpenAPI (Scalar).
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 // Endpoint público de salud (Liveness check) para monitorizar el estado de Banco Maluma.
 app.MapGet("/health", () => Results.Ok(new { status = "OK", banco = "Banco Maluma" }))

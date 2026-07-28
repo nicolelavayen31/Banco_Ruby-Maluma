@@ -17,45 +17,22 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
     {
         private readonly HttpClient _client;
         private readonly IConfiguration _configuration;
-        private readonly IServiceProvider _serviceProvider;
 
-        public TransferenciaGateway(HttpClient client, IConfiguration configuration, IServiceProvider serviceProvider)
+        public TransferenciaGateway(HttpClient client, IConfiguration configuration)
         {
             _client = client;
             _configuration = configuration;
-            _serviceProvider = serviceProvider;
         }
 
         /// <summary>
         /// Envía los detalles de la transferencia en formato JSON al Integrador ATM central de manera asíncrona.
         /// </summary>
-        public async Task EnviarAsync(string cuentaOrigen, string cuentaDestino, decimal monto, CancellationToken cancellationToken = default)
+        public async Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, decimal monto, CancellationToken cancellationToken = default)
         {
             var settings = _configuration.GetSection("IntegradorAtm");
             string baseUrl = settings["BaseUrl"] ?? "http://localhost:7000";
             string apiKey = settings["ApiKey"] ?? "REMPLAZAR_CON_TU_API_KEY_ENTREGADA";
             string sourceBank = settings["SourceBank"] ?? "bank_ruby";
-
-            // Resolver los UUIDs de cuenta asignados por el integrador
-            string cuentaOrigenUuid = cuentaOrigen;
-            string cuentaDestinoUuid = cuentaDestino;
-
-            using (var scope = _serviceProvider.CreateScope())
-            {
-                var repository = scope.ServiceProvider.GetRequiredService<ICuentaRepository>();
-                
-                var origenResult = await repository.GetByNumeroCuentaAsync(cuentaOrigen, cancellationToken);
-                if (origenResult.IsSuccess && !string.IsNullOrEmpty(origenResult.Value.IntegradorAccountId))
-                {
-                    cuentaOrigenUuid = origenResult.Value.IntegradorAccountId;
-                }
-
-                var destinoResult = await repository.GetByNumeroCuentaAsync(cuentaDestino, cancellationToken);
-                if (destinoResult.IsSuccess && !string.IsNullOrEmpty(destinoResult.Value.IntegradorAccountId))
-                {
-                    cuentaDestinoUuid = destinoResult.Value.IntegradorAccountId;
-                }
-            }
 
             // Paso 1: Obtener el token CSRF obligatorio (GET /api/v1/csrf-token)
             _client.DefaultRequestHeaders.Clear();

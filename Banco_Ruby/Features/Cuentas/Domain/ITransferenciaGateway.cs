@@ -9,11 +9,11 @@ namespace BancoCenit.Features.Cuentas.Domain
         /// <summary>
         /// Envía una transacción de transferencia de forma asíncrona hacia la pasarela de pagos.
         /// </summary>
-        /// <param name="cuentaOrigen">Cuenta debitada en el banco local.</param>
-        /// <param name="cuentaDestino">Cuenta a acreditar en el banco de destino.</param>
+        /// <param name="cuentaOrigenUuid">UUID de la cuenta origen en el integrador (o número de cuenta si no tiene UUID).</param>
+        /// <param name="cuentaDestinoUuid">UUID de la cuenta destino en el integrador (o número de cuenta si no tiene UUID).</param>
         /// <param name="monto">Monto total de la transferencia.</param>
         /// <param name="cancellationToken">Token de cancelación para la operación asíncrona.</param>
         /// <returns>Una tarea que representa la operación de envío.</returns>
-        Task EnviarAsync(string cuentaOrigen, string cuentaDestino, decimal monto, CancellationToken cancellationToken = default);
+        Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, decimal monto, CancellationToken cancellationToken = default);
     }
 }

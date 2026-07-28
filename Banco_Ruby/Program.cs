@@ -8,6 +8,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Scalar.AspNetCore;
+
 
 // Inicializa el constructor de la aplicación web ASP.NET Core con los argumentos de la línea de comandos.
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -27,6 +29,9 @@ builder.Services.AddCuentasServices();
 
 // Registra el servicio de notificaciones y la configuración de Brevo (Vertical Slice).
 builder.Services.AddNotificationsServices(builder.Configuration);
+
+// Genera la especificación OpenAPI (Swagger/Scalar) para documentar e interactuar con el API.
+builder.Services.AddOpenApi();
 
 // Construye la instancia de WebApplication para configurar el pipeline de solicitudes HTTP.
 WebApplication app = builder.Build();
@@ -55,6 +60,10 @@ using (var scope = app.Services.CreateScope())
 
 // Configura el pipeline de middleware HTTP de la aplicación (CORS, enrutamiento, manejo de excepciones).
 app.UseApplicationPipeline();
+
+// Configura la UI interactiva de documentación OpenAPI (Scalar).
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 // Mapea los endpoints de la característica de Cuentas (Vertical Slice).
 app.UseCuentasEndpoints();

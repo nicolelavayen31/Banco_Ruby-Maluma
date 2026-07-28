@@ -64,7 +64,34 @@ namespace BancoCenit.Features.Cuentas.Domain.Entities
         /// <summary>
         /// Saldo monetario disponible en pesos de la cuenta.
         /// </summary>
-        public decimal Saldo { get; set; }
+        public decimal Saldo { get; private set; }
+
+        /// <summary>
+        /// Debita un monto de la cuenta, validando fondos suficientes.
+        /// </summary>
+        public void Debitar(decimal monto)
+        {
+            if (monto <= 0) throw new ArgumentException("El monto a debitar debe ser mayor que cero.");
+            if (monto > Saldo) throw new InvalidOperationException("Fondos insuficientes.");
+            Saldo -= monto;
+        }
+
+        /// <summary>
+        /// Acredita un monto a la cuenta.
+        /// </summary>
+        public void Acreditar(decimal monto)
+        {
+            if (monto <= 0) throw new ArgumentException("El monto a acreditar debe ser mayor que cero.");
+            Saldo += monto;
+        }
+
+        /// <summary>
+        /// Restaura el saldo a un valor anterior en caso de rollback transaccional.
+        /// </summary>
+        public void RestaurarSaldo(decimal saldo)
+        {
+            Saldo = saldo;
+        }
 
         /// <summary>
         /// Indica si la cuenta está activa (true) o inactiva/bloqueada (false).
