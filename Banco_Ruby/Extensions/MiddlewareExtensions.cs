@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using System.Linq;
 
 namespace BancoCenit.Extensions;
 
@@ -34,12 +35,24 @@ public static class MiddlewareExtensions
         {
             handlerApp.Run(async context =>
             {
-                // Configura código de error 500 (Internal Server Error) de manera explícita.
-                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-                context.Response.ContentType = "application/json";
-                
-                // Retorna un mensaje seguro para no filtrar información interna del servidor (stack traces, variables de entorno) hacia el exterior.
-                await context.Response.WriteAsJsonAsync(new { error = "Ocurrió un error inesperado en el servidor." });
+                var exceptionHandlerFeature = context.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>();
+                if (exceptionHandlerFeature?.Error is FluentValidation.ValidationException valEx)
+                {
+                    // Errores de validación estructurados de FluentValidation (400 Bad Request)
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.Response.ContentType = "application/json";
+                    var errors = valEx.Errors.Select(e => e.ErrorMessage).ToList();
+                    await context.Response.WriteAsJsonAsync(new { error = string.Join("; ", errors), details = errors });
+                }
+                else
+                {
+                    // Errores inesperados del sistema (500 Internal Server Error)
+                    context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                    context.Response.ContentType = "application/json";
+                    
+                    // Retorna un mensaje seguro para no filtrar información interna del servidor (stack traces, variables de entorno) hacia el exterior.
+                    await context.Response.WriteAsJsonAsync(new { error = "Ocurrió un error inesperado en el servidor." });
+                }
             });
         });
 

@@ -9,10 +9,28 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Scalar.AspNetCore;
-
+using Serilog;
+using System.IO;
 
 // Inicializa el constructor de la aplicación web ASP.NET Core con los argumentos de la línea de comandos.
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+// Configurar Serilog para guardar logs en la consola y archivos locales
+var logDir = Path.Combine(Directory.GetCurrentDirectory(), "logs");
+if (!Directory.Exists(logDir))
+{
+    Directory.CreateDirectory(logDir);
+}
+
+Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Information()
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File(Path.Combine(logDir, "combined.log"), rollingInterval: RollingInterval.Day)
+    .WriteTo.File(Path.Combine(logDir, "error.log"), restrictedToMinimumLevel: Serilog.Events.LogEventLevel.Error, rollingInterval: RollingInterval.Day)
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 // Registra el contexto específico de base de datos 'BancoRubyDbContext' configurado para conectar con PostgreSQL.
 builder.Services.AddDbContext<BancoRubyDbContext>(options =>

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using System.Net.Http;
 using System.Net.Http.Json;
 
 namespace BancoMaluma.Features.Cuentas.Endpoint
@@ -306,6 +307,7 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             ICuentaRepository repo,
             IHttpClientFactory httpClientFactory,
             WriteDbContext db,
+            Microsoft.Extensions.Configuration.IConfiguration configuration,
             CancellationToken cancellationToken)
         {
             // Evita transferencias nulas o negativas.
@@ -341,35 +343,80 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             // Realiza la petición HTTP saliente al Integrador ATM (puerto 7000).
             try
             {
+                var settings = configuration.GetSection("IntegradorAtm");
+                string baseUrl = settings["BaseUrl"] ?? "http://localhost:7000";
+                string apiKey = settings["ApiKey"] ?? "REMPLAZAR_CON_TU_API_KEY_ENTREGADA";
+                string sourceBank = settings["SourceBank"] ?? "bank_maluma";
+
                 HttpClient client = httpClientFactory.CreateClient();
+
+                // Paso 1: Obtener el token CSRF obligatorio
+                client.DefaultRequestHeaders.Clear();
+                client.DefaultRequestHeaders.Add("x-api-version", "1");
+                
+                var csrfResponse = await client.GetAsync($"{baseUrl}/api/csrf-token", cancellationToken);
+                if (!csrfResponse.IsSuccessStatusCode)
+                {
+                    string csrfError = await csrfResponse.Content.ReadAsStringAsync(cancellationToken);
+                    throw new Exception($"No se pudo obtener el token CSRF del Integrador: {csrfError}");
+                }
+                string csrfJson = await csrfResponse.Content.ReadAsStringAsync(cancellationToken);
+                using var csrfDoc = System.Text.Json.JsonDocument.Parse(csrfJson);
+                string csrfToken = csrfDoc.RootElement.GetProperty("token").GetString() ?? throw new Exception("Token CSRF del Integrador es nulo.");
+
+                // Extraer las cookies enviadas en la respuesta de CSRF
+                string? csrfCookie = null;
+                if (csrfResponse.Headers.TryGetValues("Set-Cookie", out var cookieHeaders))
+                {
+                    csrfCookie = string.Join("; ", cookieHeaders);
+                }
+
+                // Paso 2: Resolver los UUIDs de cuenta asignados por el integrador
+                Cuenta? destino = null;
+                var destinoResult = await repo.GetByNumeroCuentaAsync(body.CuentaDestino, cancellationToken);
+                if (destinoResult.IsSuccess)
+                {
+                    destino = destinoResult.Value;
+                }
+
+                string cuentaOrigenUuid = origen.IntegradorAccountId ?? origen.NumeroCuenta;
+                string cuentaDestinoUuid = destino?.IntegradorAccountId ?? body.CuentaDestino;
+
+                // Paso 3: Configurar cabeceras de autorización y CSRF para el POST
+                var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/transactions/transfer");
+                requestMessage.Headers.Add("x-api-version", "1");
+                requestMessage.Headers.Add("x-api-key", apiKey);          // API Key del Convenio
+                requestMessage.Headers.Add("x-csrf-token", csrfToken);   // Token de validación CSRF
+                if (!string.IsNullOrEmpty(csrfCookie))
+                {
+                    requestMessage.Headers.Add("Cookie", csrfCookie);
+                }
+
+                // Convertir monto a centavos (exigido por el integrador)
+                int montoEnCentavos = (int)(body.Monto * 100);
+
+                // Crear payload alineado a 'TransferCommand' del integrador
                 var payload = new
                 {
-                    cuentaOrigen = origen.NumeroCuenta,
-                    bancoOrigen = "Banco Maluma",
-                    cuentaDestino = body.CuentaDestino,
-                    bancoDestino = body.Banco ?? "Banco Ruby",
-                    monto = body.Monto,
-                    concepto = body.Concepto ?? "Transferencia Interbancaria"
+                    from_account_id = cuentaOrigenUuid,   // UUID de cuenta emisor
+                    to_account_id = cuentaDestinoUuid,   // UUID de cuenta receptor
+                    amount = montoEnCentavos,             // Monto en centavos
+                    description = body.Concepto ?? "Transferencia Interbancaria",
+                    source_bank = sourceBank,
+                    correlation_id = Guid.NewGuid().ToString() // ID de transacción
                 };
 
-                HttpResponseMessage response = await client.PostAsJsonAsync("http://localhost:7000/api/integrador/interbank-transfer", payload, cancellationToken);
+                requestMessage.Content = JsonContent.Create(payload);
 
-                string rawResponse = await response.Content.ReadAsStringAsync(cancellationToken);
-                
+                // Paso 4: Enviar la transferencia
+                HttpResponseMessage response = await client.SendAsync(requestMessage, cancellationToken);
+
                 // Si la red responde error, ejecuta el rollback de saldo en la cuenta emisora.
                 if (!response.IsSuccessStatusCode)
                 {
+                    string rawResponse = await response.Content.ReadAsStringAsync(cancellationToken);
                     origen.Saldo += body.Monto; // Rollback
                     return Results.BadRequest(new { error = $"El Integrador ATM devolvió error (HTTP {(int)response.StatusCode}): {rawResponse}" });
-                }
-
-                // Parsea la respuesta del integrador para validar errores de negocio.
-                using var jsonDoc = System.Text.Json.JsonDocument.Parse(rawResponse);
-                if (jsonDoc.RootElement.TryGetProperty("status", out var statusProp) && statusProp.GetString() == "ERROR")
-                {
-                    origen.Saldo += body.Monto; // Rollback
-                    string msg = jsonDoc.RootElement.TryGetProperty("message", out var msgProp) ? msgProp.GetString() ?? "Error en Integrador ATM" : "Error en Integrador ATM";
-                    return Results.BadRequest(new { error = msg });
                 }
 
                 // Si todo sale bien, persiste la base de datos de escritura.
@@ -380,7 +427,7 @@ namespace BancoMaluma.Features.Cuentas.Endpoint
             {
                 // Rollback en caso de fallo de red o conexión rechazada.
                 origen.Saldo += body.Monto; // Rollback
-                return Results.BadRequest(new { error = $"Fallo al conectar con el Integrador ATM (http://localhost:7000). Detalle: {ex.Message}" });
+                return Results.BadRequest(new { error = $"Fallo al conectar con el Integrador ATM. Detalle: {ex.Message}" });
             }
         }
     }

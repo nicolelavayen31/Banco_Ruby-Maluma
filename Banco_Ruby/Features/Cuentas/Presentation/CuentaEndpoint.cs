@@ -49,6 +49,9 @@ namespace BancoCenit.Features.Cuentas.Presentation
             // Endpoint para abono/crédito interbancario entrante (invocado por el Integrador ATM)
             group.MapPost("/cuentas/{numero}/credito", AcreditarAsync);
 
+            // Endpoint de webhook/callback interbancario (para compatibilidad de firmas)
+            group.MapPost("/transferencias/interbancarias/callback", CallbackInterbancarioAsync);
+
             // ----------------- ENDPOINTS CLÁSICOS / RAÍZ -----------------
             app.MapGet("/saldo/{numero}", ConsultarSaldoAsync)
                .AddEndpointFilter<AccountAuthorizationFilter>();
@@ -298,6 +301,30 @@ namespace BancoCenit.Features.Cuentas.Presentation
             catch
             {
                 return Results.BadRequest(new { error = "Cuerpo de acreditación inválido" });
+            }
+        }
+
+        private static async Task<IResult> CallbackInterbancarioAsync(
+            HttpRequest req,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                using JsonDocument doc = await JsonDocument.ParseAsync(req.Body, cancellationToken: cancellationToken);
+                JsonElement root = doc.RootElement;
+                
+                string referenciaExterna = root.TryGetProperty("referenciaExterna", out JsonElement re) || root.TryGetProperty("ReferenciaExterna", out re) ? re.GetString() ?? string.Empty : string.Empty;
+                string estado = root.TryGetProperty("estado", out JsonElement es) || root.TryGetProperty("Estado", out es) ? es.GetString() ?? string.Empty : string.Empty;
+                string? codigoError = root.TryGetProperty("codigoError", out JsonElement ce) || root.TryGetProperty("CodigoError", out ce) ? ce.GetString() : null;
+                string? mensaje = root.TryGetProperty("mensaje", out JsonElement ms) || root.TryGetProperty("Mensaje", out ms) ? ms.GetString() : null;
+
+                Console.WriteLine($"[Webhook Callback] Recibido callback para transacción '{referenciaExterna}': estado='{estado}', codigoError='{codigoError}', mensaje='{mensaje}'");
+
+                return Results.Ok(new { recibido = true });
+            }
+            catch (Exception ex)
+            {
+                return Results.BadRequest(new { error = $"Error procesando callback: {ex.Message}" });
             }
         }
     }

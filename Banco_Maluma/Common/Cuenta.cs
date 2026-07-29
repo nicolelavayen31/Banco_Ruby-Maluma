@@ -79,6 +79,11 @@ public sealed class Cuenta
     public bool Estado { get; set; }
 
     /// <summary>
+    /// Identificador único de la cuenta mapeada en el Integrador ATM.
+    /// </summary>
+    public string? IntegradorAccountId { get; set; }
+
+    /// <summary>
     /// Fecha y hora de creación de la cuenta bancaria.
     /// </summary>
     public DateTime CreadoEn { get; set; }

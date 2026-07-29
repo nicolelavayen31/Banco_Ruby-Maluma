@@ -5,6 +5,13 @@ using BancoCenit.Features.Cuentas.Presentation;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using FluentValidation;
+using MediatR;
+using BancoCenit.Common.Behaviors;
+using Polly;
+using Polly.Extensions.Http;
+using System;
+using System.Net.Http;
 
 namespace BancoCenit.Features.Cuentas
 {
@@ -24,11 +31,20 @@ namespace BancoCenit.Features.Cuentas
             // Registra la implementación de CuentaRepository para el acceso a datos.
             services.AddScoped<ICuentaRepository, CuentaRepository>();
 
-            // Registra la implementación del gateway para transferencias salientes con soporte de HttpClient.
-            services.AddHttpClient<ITransferenciaGateway, TransferenciaGateway>();
+            // Registra validadores de FluentValidation del ensamblado
+            services.AddValidatorsFromAssembly(typeof(CuentasModule).Assembly);
 
-            // Registra MediatR para escanear y registrar automáticamente todos los comandos y manejadores de este ensamblado
-            services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(CuentasModule).Assembly));
+            // Registra MediatR, manejadores y el pipeline behavior de validaciones estructuradas
+            services.AddMediatR(cfg => 
+            {
+                cfg.RegisterServicesFromAssembly(typeof(CuentasModule).Assembly);
+                cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            });
+
+            // Registra la implementación del gateway para transferencias salientes con soporte de HttpClient y resiliencia de Polly (Retry & Circuit Breaker)
+            services.AddHttpClient<ITransferenciaGateway, TransferenciaGateway>()
+                .AddPolicyHandler(GetRetryPolicy())
+                .AddPolicyHandler(GetCircuitBreakerPolicy());
 
             return services;
         }
@@ -39,6 +55,20 @@ namespace BancoCenit.Features.Cuentas
         public static IEndpointRouteBuilder UseCuentasEndpoints(this IEndpointRouteBuilder app)
         {
             return CuentaEndpoint.MapCuentaEndpoints(app);
+        }
+
+        private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy()
+        {
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)));
+        }
+
+        private static IAsyncPolicy<HttpResponseMessage> GetCircuitBreakerPolicy()
+        {
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .CircuitBreakerAsync(3, TimeSpan.FromSeconds(30));
         }
     }
 }

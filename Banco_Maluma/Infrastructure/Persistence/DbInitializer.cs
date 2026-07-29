@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS cuenta (
 
 ALTER TABLE cuenta ADD COLUMN IF NOT EXISTS tipo_cuenta TEXT NOT NULL DEFAULT 'Ahorros';
 ALTER TABLE cuenta ADD COLUMN IF NOT EXISTS cupo_sobregiro NUMERIC(18,2) NOT NULL DEFAULT 0;
+ALTER TABLE cuenta ADD COLUMN IF NOT EXISTS integrador_account_id VARCHAR(100);
 
 CREATE TABLE IF NOT EXISTS auditoria (
     auditoria_id SERIAL PRIMARY KEY,
@@ -84,20 +85,22 @@ ON CONFLICT DO NOTHING;
 
 UPDATE usuario SET nombre = 'maluma', pin = '2026';
 
-INSERT INTO cuenta (usuario_id, numero_cuenta, saldo, tipo_cuenta, cupo_sobregiro, estado)
+INSERT INTO cuenta (usuario_id, numero_cuenta, saldo, tipo_cuenta, cupo_sobregiro, estado, integrador_account_id)
 VALUES (
     (SELECT usuario_id FROM usuario WHERE nombre = 'maluma' AND pin = '2026' ORDER BY usuario_id ASC LIMIT 1),
     '9999888877776666',
     500.00,
     'Corriente',
     200.00,
-    TRUE
+    TRUE,
+    '267c00a9-865e-4b6b-af47-c81a021cc040'
 )
 ON CONFLICT (numero_cuenta) DO UPDATE
 SET saldo = EXCLUDED.saldo,
     tipo_cuenta = EXCLUDED.tipo_cuenta,
     cupo_sobregiro = EXCLUDED.cupo_sobregiro,
-    estado = EXCLUDED.estado;
+    estado = EXCLUDED.estado,
+    integrador_account_id = EXCLUDED.integrador_account_id;
 ";
                 using (var cmd = new NpgsqlCommand(script, conn))
                 {

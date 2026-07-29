@@ -34,21 +34,37 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
             string apiKey = settings["ApiKey"] ?? "REMPLAZAR_CON_TU_API_KEY_ENTREGADA";
             string sourceBank = settings["SourceBank"] ?? "bank_ruby";
 
-            // Paso 1: Obtener el token CSRF obligatorio (GET /api/v1/csrf-token)
+            // Paso 1: Obtener el token CSRF obligatorio (GET /api/csrf-token)
             _client.DefaultRequestHeaders.Clear();
             _client.DefaultRequestHeaders.Add("x-api-version", "1");
             
-            var csrfResponse = await _client.GetFromJsonAsync<CsrfResponse>($"{baseUrl}/api/v1/csrf-token", cancellationToken);
+            var csrfHttpResponse = await _client.GetAsync($"{baseUrl}/api/csrf-token", cancellationToken);
+            csrfHttpResponse.EnsureSuccessStatusCode();
+
+            var csrfResponse = await csrfHttpResponse.Content.ReadFromJsonAsync<CsrfResponse>(cancellationToken: cancellationToken);
             string csrfToken = csrfResponse?.Token ?? throw new Exception("No se pudo obtener el token CSRF del Integrador.");
 
+            // Extraer las cookies enviadas en la respuesta de CSRF
+            string? csrfCookie = null;
+            if (csrfHttpResponse.Headers.TryGetValues("Set-Cookie", out var cookieHeaders))
+            {
+                csrfCookie = string.Join("; ", cookieHeaders);
+            }
+
             // Paso 2: Configurar cabeceras de autorización y CSRF para el POST
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/v1/transactions/transfer");
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/transactions/transfer");
             requestMessage.Headers.Add("x-api-version", "1");
-            requestMessage.Headers.Add("api-key", apiKey);          // API Key del Convenio
+            requestMessage.Headers.Add("x-api-key", apiKey);          // API Key del Convenio
             requestMessage.Headers.Add("x-csrf-token", csrfToken);   // Token de validación CSRF
+            if (!string.IsNullOrEmpty(csrfCookie))
+            {
+                requestMessage.Headers.Add("Cookie", csrfCookie);
+            }
 
             // Convertir monto a centavos (exigido por el integrador)
             int montoEnCentavos = (int)(monto * 100);
+
+            Console.WriteLine($"[TransferenciaGateway] Enviando a Integrador: from_account_id='{cuentaOrigenUuid}', to_account_id='{cuentaDestinoUuid}', amount={montoEnCentavos}");
 
             // Crear payload alineado a 'TransferCommand' del integrador
             var payload = new

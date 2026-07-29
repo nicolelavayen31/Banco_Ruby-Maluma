@@ -62,6 +62,7 @@ namespace BancoMaluma.Infrastructure.Persistence
                 entity.Property(e => e.TipoCuenta).HasColumnName("tipo_cuenta").IsRequired();
                 entity.Property(e => e.CupoSobregiro).HasColumnName("cupo_sobregiro");
                 entity.Property(e => e.Estado).HasColumnName("estado");
+                entity.Property(e => e.IntegradorAccountId).HasColumnName("integrador_account_id");
                 entity.Property(e => e.CreadoEn).HasColumnName("creado_en");
                 entity.HasMany(e => e.Auditorias).WithOne(e => e.Cuenta).HasForeignKey(e => e.CuentaId);
             });

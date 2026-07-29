@@ -1,0 +1,387 @@
+{
+  "info": {
+    "_postman_id": "e46a4829-3b75-4a26-94e6-3df70560c135",
+    "name": "Pruebas BancoFuego",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "53290369",
+    "_collection_link": "https://go.postman.co/collection/53290369-e46a4829-3b75-4a26-94e6-3df70560c135?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "metodo health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiurl}}/health",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();\r",
+                  "pm.collectionVariables.set(\"token\", jsonData.token);"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"numeroTarjeta\": \"4111111111111111\",\r\n  \"pin\": \"1234\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/auth/login",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transferencias_Interbancarias",
+      "item": [
+        {
+          "name": "transferenciasinterbcariaExitosa",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"tipoTransferencia\": \"INTERBANCARIA\",\r\n    \"cuentaOrigenId\": 1,\r\n    \"numeroCuentaDestino\": \"2200123456\",\r\n    \"codigoBancoDestino\": \"BANCO_PICHINCHA\",\r\n    \"monto\": 50.00,\r\n    \"concepto\": \"Prueba camino feliz\",\r\n    \"idempotencyKey\": \"test-feliz-001\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{json_web_token_0p8d}}",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TransferenciaInterbancariaPendiente-aceptada",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"tipoTransferencia\": \"INTERBANCARIA\",\r\n    \"cuentaOrigenId\": 1,\r\n    \"numeroCuentaDestino\": \"2200123456\",\r\n    \"codigoBancoDestino\": \"BANCO_TEST_PENDIENTE_ACEPTA\",\r\n    \"monto\": 50.00,\r\n    \"concepto\": \"Prueba pendiente acepta\",\r\n    \"idempotencyKey\": \"test-pend-acepta-001\"\r\n  }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "transferenciaInterbacariaRechazada",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"tipoTransferencia\": \"INTERBANCARIA\",\r\n    \"cuentaOrigenId\": 1,\r\n    \"numeroCuentaDestino\": \"2200123456\",\r\n    \"codigoBancoDestino\": \"BANCO_TEST_RECHAZO\",\r\n    \"monto\": 50.00,\r\n    \"concepto\": \"Prueba rechazo inmediato\",\r\n    \"idempotencyKey\": \"test-rechazo-001\"\r\n  }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TransferenciaInterbancariaPendiente-Rechazo",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"tipoTransferencia\": \"INTERBANCARIA\",\r\n    \"cuentaOrigenId\": 1,\r\n    \"numeroCuentaDestino\": \"2200123456\",\r\n    \"codigoBancoDestino\": \"BANCO_TEST_PENDIENTE_RECHAZA\",\r\n    \"monto\": 50.00,\r\n    \"concepto\": \"Prueba pendiente rechaza\",\r\n    \"idempotencyKey\": \"test-pend-rechaza-001\"\r\n  }",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias/",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "TransferenciaINterbacariaSinRespuesta",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"tipoTransferencia\": \"INTERBANCARIA\",\r\n    \"cuentaOrigenId\": 1,\r\n    \"numeroCuentaDestino\": \"2200123456\",\r\n    \"codigoBancoDestino\": \"BANCO_TEST_TIMEOUT\",\r\n    \"monto\": 50.00,\r\n    \"concepto\": \"Prueba timeout\",\r\n    \"idempotencyKey\": \"test-timeout-001\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ConsultarEstadoTransferencias",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias/interbancarias/59/estado",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias",
+                "interbancarias",
+                "59",
+                "estado"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "ProbandoCallback",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"referenciaExterna\": \"EXT-1785007207741\",\r\n    \"estado\": \"RECHAZADA\",\r\n    \"codigoError\": \"RECHAZO_DIFERIDO_SIMULADO\",\r\n    \"mensaje\": \"La red simulada rechazó la transferencia tras revisión.\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias/interbancarias/callback",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias",
+                "interbancarias",
+                "callback"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Transferencias_Entrates",
+      "item": [
+        {
+          "name": "Transferencia-Entrante-Exitosa",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n    \"bancoOrigen\": \"BANCO_TEST\",\r\n    \"numeroCuentaDestino\": \"2200000008\",\r\n    \"monto\": 50,\r\n    \"concepto\": \"Prueba de transferencia entrante\",\r\n    \"referenciaExterna\": \"EXT-PRUEBA-002\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{apiurl}}/api/transferencias/interbancarias/recibir",
+              "host": [
+                "{{apiurl}}"
+              ],
+              "path": [
+                "api",
+                "transferencias",
+                "interbancarias",
+                "recibir"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "mi_token",
+      "value": ""
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "json_web_token_0p8d",
+      "secret": true
+    }
+  ]
+}
