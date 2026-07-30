@@ -1,49 +1,72 @@
-using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
-using BancoCenit.Infrastructure;
+using Dapper;
 using FluentResults;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Npgsql;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Queries
 {
     /// <summary>
-    /// Manejador de MediatR para consultar el historial de transacciones de una cuenta activa en Banco Ruby.
+    /// Manejador de MediatR para consultar el historial de transacciones utilizando Dapper (alto rendimiento).
     /// </summary>
     public class ObtenerHistorialQueryHandler : IRequestHandler<ObtenerHistorialQuery, Result<HistorialResponse>>
     {
-        private readonly ICuentaRepository _repository;
-        private readonly BancoRubyDbContext _db;
+        private readonly string _connectionString;
 
-        public ObtenerHistorialQueryHandler(ICuentaRepository repository, BancoRubyDbContext db)
+        public ObtenerHistorialQueryHandler(IConfiguration configuration)
         {
-            _repository = repository;
-            _db = db;
+            _connectionString = configuration.GetConnectionString("BancoRuby") 
+                ?? throw new InvalidOperationException("Cadena de conexión 'BancoRuby' no configurada.");
         }
 
         public async Task<Result<HistorialResponse>> Handle(ObtenerHistorialQuery query, CancellationToken cancellationToken)
         {
-            var cuentaResult = await _repository.GetByNumeroCuentaAsync(query.NumeroCuenta, cancellationToken);
-            if (cuentaResult.IsFailed)
+            using (NpgsqlConnection connection = new NpgsqlConnection(_connectionString))
             {
-                return Result.Fail<HistorialResponse>(cuentaResult.Errors);
+                const string sql = @"
+                    SELECT u.nombre AS TitularNombre, a.tipo AS Tipo, a.monto AS Monto, a.descripcion AS Descripcion, a.creado_en AS CreadoEn
+                    FROM cuenta c
+                    INNER JOIN usuario u ON c.usuario_id = u.usuario_id
+                    LEFT JOIN auditoria a ON c.cuenta_id = a.cuenta_id
+                    WHERE c.numero_cuenta = @NumeroCuenta AND c.estado = true
+                    ORDER BY a.creado_en DESC";
+
+                IEnumerable<DbRow> rows = await connection.QueryAsync<DbRow>(sql, new { NumeroCuenta = query.NumeroCuenta });
+                
+                // Si no hay filas, significa que la cuenta no existe o está inactiva
+                List<DbRow> rowsList = rows.ToList();
+                if (rowsList.Count == 0)
+                {
+                    return Result.Fail<HistorialResponse>($"Cuenta {query.NumeroCuenta} no encontrada o inactiva.");
+                }
+
+                // El nombre del titular es el mismo en todas las filas
+                string titularNombre = rowsList[0].TitularNombre;
+
+                // Mapeamos las filas a la estructura final de HistorialResumen.
+                // Excluimos las filas donde no hay auditorías (es decir, Tipo es nulo debido al LEFT JOIN).
+                List<HistorialResumen> historial = rowsList
+                    .Where(r => r.Tipo != null)
+                    .Select(r => new HistorialResumen(r.Tipo!, r.Monto!.Value, r.Descripcion!, r.CreadoEn!.Value))
+                    .ToList();
+
+                return Result.Ok(new HistorialResponse(titularNombre, historial));
             }
+        }
 
-            Cuenta cuenta = cuentaResult.Value;
-
-            // Extrae los registros de auditoría filtrados por CuentaId ordenados descendentemente.
-            List<HistorialResumen> auditorias = await _db.Auditoria
-                .AsNoTracking()
-                .Where(a => a.CuentaId == cuenta.CuentaId)
-                .OrderByDescending(a => a.CreadoEn)
-                .Select(a => new HistorialResumen(a.Tipo, a.Monto, a.Descripcion, a.CreadoEn))
-                .ToListAsync(cancellationToken);
-
-            string titularNombre = cuenta.Usuario?.Nombre ?? string.Empty;
-
-            return Result.Ok(new HistorialResponse(titularNombre, auditorias));
+        private sealed class DbRow
+        {
+            public string TitularNombre { get; set; } = string.Empty;
+            public string? Tipo { get; set; }
+            public decimal? Monto { get; set; }
+            public string? Descripcion { get; set; }
+            public DateTime? CreadoEn { get; set; }
         }
     }
 }

@@ -5,6 +5,11 @@ using BancoCenit.Features.Notifications.Infrastructure.Configuration;
 using FluentResults;
 using MediatR;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
@@ -16,15 +21,18 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
         private readonly ICuentaRepository _repository;
         private readonly IEmailService _emailService;
         private readonly BrevoOptions _brevoOptions;
+        private readonly IConfiguration _configuration;
 
         public AutenticarCommandHandler(
             ICuentaRepository repository,
             IEmailService emailService,
-            IOptions<BrevoOptions> brevoOptions)
+            IOptions<BrevoOptions> brevoOptions,
+            IConfiguration configuration)
         {
             _repository = repository;
             _emailService = emailService;
             _brevoOptions = brevoOptions?.Value ?? new BrevoOptions();
+            _configuration = configuration;
         }
 
         public async Task<Result<AutenticarResponse>> Handle(AutenticarCommand command, CancellationToken cancellationToken)
@@ -36,7 +44,39 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             }
 
             Cuenta cuenta = cuentaResult.Value;
+
+            // Verificar PIN con BCrypt
+            if (cuenta.Usuario == null || !BCrypt.Net.BCrypt.Verify(command.Pin, cuenta.Usuario.Pin))
+            {
+                return Result.Fail<AutenticarResponse>("PIN incorrecto o no configurado.");
+            }
+
             string titularNombre = cuenta.Usuario?.Nombre ?? "Cliente";
+
+            // Generar Token JWT
+            var jwtSettings = _configuration.GetSection("JwtSettings");
+            var secretKey = jwtSettings["Secret"] ?? "super_secret_banco_ruby_key_that_is_at_least_32_characters_long_12345";
+            var issuer = jwtSettings["Issuer"] ?? "BancoRuby";
+            var audience = jwtSettings["Audience"] ?? "BancoRubyClients";
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, cuenta.Usuario?.Nombre ?? "Cliente"),
+                new Claim("NumeroCuenta", cuenta.NumeroCuenta)
+            };
+
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: DateTime.Now.AddHours(2),
+                signingCredentials: creds
+            );
+
+            string tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
             // Enviar alerta de inicio de sesión por correo
             string subject = "Alerta de Seguridad - Banco Ruby";
@@ -86,7 +126,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                 ), CancellationToken.None);
             }
 
-            return Result.Ok(new AutenticarResponse(titularNombre, cuenta.NumeroCuenta));
+            return Result.Ok(new AutenticarResponse(titularNombre, cuenta.NumeroCuenta, tokenString));
         }
     }
 }

@@ -1,10 +1,10 @@
 using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
-using BancoCenit.Features.Notifications.Domain;
-using BancoCenit.Features.Notifications.Infrastructure.Configuration;
+using BancoCenit.Features.Cuentas.Domain.Events;
 using FluentResults;
 using MediatR;
-using Microsoft.Extensions.Options;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
@@ -16,17 +16,14 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
     {
         private const decimal COMISION = 0m;
         private readonly ICuentaRepository _repository;
-        private readonly IEmailService _emailService;
-        private readonly BrevoOptions _brevoOptions;
+        private readonly IMediator _mediator;
 
         public RetirarCommandHandler(
             ICuentaRepository repository,
-            IEmailService emailService,
-            IOptions<BrevoOptions> brevoOptions)
+            IMediator mediator)
         {
             _repository = repository;
-            _emailService = emailService;
-            _brevoOptions = brevoOptions?.Value ?? new BrevoOptions();
+            _mediator = mediator;
         }
 
         public async Task<Result<OperacionResponse>> Handle(RetirarCommand command, CancellationToken cancellationToken)
@@ -46,7 +43,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                 return Result.Fail<OperacionResponse>("El retiro excede el límite de 500.");
             }
 
-            var cuentaResult = await _repository.GetByNumeroCuentaAsync(command.NumeroCuenta, cancellationToken);
+            Result<Cuenta> cuentaResult = await _repository.GetByNumeroCuentaAsync(command.NumeroCuenta, cancellationToken);
             if (cuentaResult.IsFailed)
             {
                 return Result.Fail<OperacionResponse>(cuentaResult.Errors);
@@ -64,76 +61,13 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             // Debita los fondos
             cuenta.Debitar(totalDebitado);
 
-            var auditoria = new Auditoria
-            {
-                CuentaId = cuenta.CuentaId,
-                NumeroCuenta = cuenta.NumeroCuenta,
-                Tipo = "Retiro",
-                Monto = totalDebitado,
-                Descripcion = $"Se debitó de la cuenta ${command.Monto:N2}.",
-                CreadoEn = DateTime.UtcNow
-            };
-
-            await _repository.RegistrarAuditoriaAsync(auditoria, cancellationToken);
             await _repository.UpdateAsync(cuenta, cancellationToken);
+            await _repository.SaveChangesAsync(cancellationToken);
 
             string msg = $"Retiro de ${command.Monto:N2} realizado.";
-            string titularNombre = cuenta.Usuario?.Nombre ?? "Cliente";
 
-            // Enviar correo de notificación de retiro
-            string subject = "Confirmación de Retiro - Banco Ruby";
-            string htmlContent = $@"
-                <html>
-                    <body style='font-family: Arial, sans-serif; color: #333;'>
-                        <div style='max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;'>
-                            <h2 style='color: #c62828;'>Banco Ruby - Retiro Realizado</h2>
-                            <p>Hola, <b>{titularNombre}</b>.</p>
-                            <p>Se ha realizado un retiro de efectivo en tu cuenta con los siguientes detalles:</p>
-                            <table style='width: 100%; border-collapse: collapse; margin-top: 15px;'>
-                                <tr>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>Número de Cuenta:</td>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee;'>{cuenta.NumeroCuenta}</td>
-                                </tr>
-                                <tr>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>Monto Retirado:</td>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; color: #c62828; font-weight: bold;'>${command.Monto:N2}</td>
-                                </tr>
-                                <tr>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>Comisión de Operación:</td>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee;'>${COMISION:N2}</td>
-                                </tr>
-                                <tr>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>Saldo Disponible:</td>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>${cuenta.Saldo:N2}</td>
-                                </tr>
-                                <tr>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee; font-weight: bold;'>Fecha/Hora:</td>
-                                    <td style='padding: 8px; border-bottom: 1px solid #eee;'>{DateTime.Now:dd/MM/yyyy HH:mm:ss}</td>
-                                </tr>
-                            </table>
-                            <br/>
-                            <p style='font-size: 12px; color: #777;'>Este es un correo transaccional automático enviado de forma segura por Banco Ruby.</p>
-                        </div>
-                    </body>
-                </html>";
-
-            string destinatariosRaw = string.IsNullOrWhiteSpace(_brevoOptions.DestinatariosPrueba)
-                ? "nicoa6088@gmail.com"
-                : _brevoOptions.DestinatariosPrueba;
-
-            string[] destinatarios = destinatariosRaw.Split(',', StringSplitOptions.RemoveEmptyEntries);
-
-            foreach (var email in destinatarios)
-            {
-                string targetEmail = email.Trim();
-                _ = Task.Run(() => _emailService.SendEmailAsync(
-                    targetEmail,
-                    titularNombre,
-                    subject,
-                    htmlContent,
-                    CancellationToken.None
-                ), CancellationToken.None);
-            }
+            // Publicar Evento de Dominio de Retiro Realizado con éxito (Desacoplado de la transacción)
+            await _mediator.Publish(new RetiroRealizadoEvent(cuenta, command.Monto), cancellationToken);
 
             return Result.Ok(new OperacionResponse(msg, cuenta.Saldo));
         }

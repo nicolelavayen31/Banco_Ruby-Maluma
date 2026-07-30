@@ -23,6 +23,19 @@ public static class MiddlewareExtensions
             // In development keep default developer exceptions if present; nothing required here.
         }
 
+        // Inyectar cabeceras de seguridad HTTP recomendadas
+        app.Use(async (context, next) =>
+        {
+            context.Response.Headers.Append("X-Frame-Options", "DENY");
+            context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+            context.Response.Headers.Append("X-XSS-Protection", "1; mode=block");
+            context.Response.Headers.Append("Content-Security-Policy", "default-src 'self'");
+            await next();
+        });
+
+        // Habilitar el middleware de control de tasa (Rate Limiting)
+        app.UseRateLimiter();
+
         // Middleware que proporciona respuestas descriptivas por defecto para códigos de estado de error HTTP comunes (ej. 404, 403).
         app.UseStatusCodePages();
 

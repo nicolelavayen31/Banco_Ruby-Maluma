@@ -2,7 +2,7 @@ using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using BancoCenit.Features;
+using BancoCenit.Common.Filters;
 using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Application.DTOs;
 using BancoCenit.Features.Cuentas.Application.Commands;
@@ -27,9 +27,10 @@ namespace BancoCenit.Features.Cuentas.Presentation
         public static IEndpointRouteBuilder MapCuentaEndpoints(this IEndpointRouteBuilder app)
         {
             // ----------------- ENDPOINTS DE COMPATIBILIDAD CON CAJERO / CLIENTE -----------------
-            var group = app.MapGroup("/api");
+            RouteGroupBuilder group = app.MapGroup("/api");
 
-            group.MapPost("/cuentas/{numero}/autenticar", AutenticarAsync);
+            group.MapPost("/cuentas/{numero}/autenticar", AutenticarAsync)
+                 .RequireRateLimiting("auth-limit");
             
             group.MapGet("/cuentas/{numero}/saldo", ConsultarSaldoAsync)
                  .AddEndpointFilter<AccountAuthorizationFilter>();
@@ -77,23 +78,34 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            // Intenta leer el body por compatibilidad física si envía PIN
+            string pin = string.Empty;
             try
             {
+                // Habilitar buffering para permitir múltiples lecturas si es necesario
+                req.EnableBuffering();
                 using JsonDocument doc = await JsonDocument.ParseAsync(req.Body);
+                JsonElement root = doc.RootElement;
+                if (root.TryGetProperty("Pin", out JsonElement p) || root.TryGetProperty("pin", out p))
+                {
+                    pin = p.GetString() ?? string.Empty;
+                }
             }
             catch
             {
                 // Ignora el error de parseo si está vacío
             }
 
-            var result = await mediator.Send(new AutenticarCommand(numero), cancellationToken);
+            Result<AutenticarResponse> result = await mediator.Send(new AutenticarCommand(numero, pin), cancellationToken);
             if (result.IsFailed)
             {
-                return Results.NotFound(new { error = result.Errors[0].Message });
+                if (result.Errors[0].Message.Contains("PIN incorrecto"))
+                {
+                    return Results.Json(new { error = result.Errors[0].Message }, statusCode: 401);
+                }
+                return Results.Json(new { error = result.Errors[0].Message }, statusCode: 404);
             }
 
-            return Results.Ok(new { titular = result.Value.Titular, cuenta = result.Value.Cuenta });
+            return Results.Ok(new { titular = result.Value.Titular, cuenta = result.Value.Cuenta, token = result.Value.Token });
         }
 
         private static async Task<IResult> ConsultarSaldoAsync(
@@ -101,7 +113,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new ObtenerSaldoQuery(numero), cancellationToken);
+            Result<SaldoResponse> result = await mediator.Send(new ObtenerSaldoQuery(numero), cancellationToken);
             if (result.IsFailed)
             {
                 return Results.NotFound(new { error = result.Errors[0].Message });
@@ -126,7 +138,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
                 }
 
                 decimal monto = m.GetDecimal();
-                var result = await mediator.Send(new DepositarCommand(numero, monto), cancellationToken);
+                Result<OperacionResponse> result = await mediator.Send(new DepositarCommand(numero, monto), cancellationToken);
                 if (result.IsFailed)
                 {
                     return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -146,7 +158,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new DepositarCommand(request.NumeroCuenta, request.Monto), cancellationToken);
+            Result<OperacionResponse> result = await mediator.Send(new DepositarCommand(request.NumeroCuenta, request.Monto), cancellationToken);
             if (result.IsFailed)
             {
                 return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -171,7 +183,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
                 }
 
                 decimal monto = m.GetDecimal();
-                var result = await mediator.Send(new RetirarCommand(numero, monto), cancellationToken);
+                Result<OperacionResponse> result = await mediator.Send(new RetirarCommand(numero, monto), cancellationToken);
                 if (result.IsFailed)
                 {
                     return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -191,7 +203,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new RetirarCommand(request.NumeroCuenta, request.Monto), cancellationToken);
+            Result<OperacionResponse> result = await mediator.Send(new RetirarCommand(request.NumeroCuenta, request.Monto), cancellationToken);
             if (result.IsFailed)
             {
                 return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -227,7 +239,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
                     transactionId = tId.GetString();
                 }
 
-                var result = await mediator.Send(new TransferirCommand(numero, cuentaDestino, monto, transactionId), cancellationToken);
+                Result<OperacionResponse> result = await mediator.Send(new TransferirCommand(numero, cuentaDestino, monto, transactionId), cancellationToken);
                 if (result.IsFailed)
                 {
                     return Results.BadRequest(new { error = result.Errors[0].Message });
@@ -246,7 +258,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new TransferirCommand(
+            Result<OperacionResponse> result = await mediator.Send(new TransferirCommand(
                 request.NumeroCuentaOrigen, 
                 request.NumeroCuentaDestino, 
                 request.Monto, 
@@ -264,7 +276,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             IMediator mediator, 
             CancellationToken cancellationToken)
         {
-            var result = await mediator.Send(new ObtenerHistorialQuery(numero), cancellationToken);
+            Result<HistorialResponse> result = await mediator.Send(new ObtenerHistorialQuery(numero), cancellationToken);
             if (result.IsFailed)
             {
                 return Results.NotFound(new { error = result.Errors[0].Message });
@@ -290,7 +302,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
                 string? bancoOrigen = root.TryGetProperty("bancoOrigen", out JsonElement bo) ? bo.GetString() : null;
                 string? concepto = root.TryGetProperty("concepto", out JsonElement cp) ? cp.GetString() : null;
 
-                var result = await mediator.Send(new AcreditarCommand(numero, monto, cuentaOrigen, bancoOrigen, concepto), cancellationToken);
+                Result<OperacionResponse> result = await mediator.Send(new AcreditarCommand(numero, monto, cuentaOrigen, bancoOrigen, concepto), cancellationToken);
                 if (result.IsFailed)
                 {
                     return Results.BadRequest(new { error = result.Errors[0].Message });

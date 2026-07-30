@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
 
 -- Insertar usuario "nicole"
 INSERT INTO usuario (nombre, pin)
-VALUES ('nicole', '2003')
+VALUES ('nicole', '$2a$10$BVSM5ZQ389KSoCQ7a75f4Ox3Olx.9Z4YkAPEotZdX5RVIdWYyn.cO')
 ON CONFLICT DO NOTHING;
 
 -- Insertar cuenta de prueba para nicole
