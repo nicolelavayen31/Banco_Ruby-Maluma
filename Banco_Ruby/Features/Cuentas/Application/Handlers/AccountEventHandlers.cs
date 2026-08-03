@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
@@ -12,9 +12,7 @@ using BancoCenit.Features.Notifications.Infrastructure.Configuration;
 
 namespace BancoCenit.Features.Cuentas.Application.Handlers
 {
-    /// <summary>
-    /// Manejador de eventos unificado para registrar la auditoría y enviar correos de cuentas (depósitos y retiros) de forma asíncrona.
-    /// </summary>
+    // Manejador de eventos unificado para registrar la auditorÃ­a y enviar correos de cuentas (depÃ³sitos y retiros) de forma asÃ­ncrona.
     public class AccountEventHandlers : 
         INotificationHandler<DepositoRealizadoEvent>,
         INotificationHandler<RetiroRealizadoEvent>
@@ -33,22 +31,22 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
             _brevoOptions = brevoOptions?.Value ?? new BrevoOptions();
         }
 
-        // Manejador del evento de depósito
+        // Manejador del evento de depÃ³sito
         public async Task Handle(DepositoRealizadoEvent notification, CancellationToken cancellationToken)
         {
             try
             {
-                await RegistrarAuditoriaAsync(notification.Cuenta, "Depósito", notification.Monto, $"Se acreditó a la cuenta ${notification.Monto:N2}.", cancellationToken);
+                await RegistrarAuditoriaAsync(notification.Cuenta, "DepÃ³sito", notification.Monto, $"Se acreditÃ³ a la cuenta ${notification.Monto:N2}.", cancellationToken);
                 
                 string htmlContent = EmailTemplates.BuildDepositHtml(notification.Cuenta, notification.Monto);
                 string titularNombre = notification.Cuenta.Usuario?.Nombre ?? "Cliente";
                 
-                await EnviarEmailAsync(titularNombre, "Confirmación de Depósito - Banco Ruby", htmlContent);
-                Log.Information("Auditoría y correo de depósito procesados con éxito (Manejador Unificado).");
+                await EnviarEmailAsync(titularNombre, "ConfirmaciÃ³n de DepÃ³sito - Banco Ruby", htmlContent);
+                Log.Information("AuditorÃ­a y correo de depÃ³sito procesados con Ã©xito (Manejador Unificado).");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error al procesar el evento de depósito realizado en el manejador unificado");
+                Log.Error(ex, "Error al procesar el evento de depÃ³sito realizado en el manejador unificado");
             }
         }
 
@@ -57,13 +55,13 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
         {
             try
             {
-                await RegistrarAuditoriaAsync(notification.Cuenta, "Retiro", notification.Monto, $"Se debitó de la cuenta ${notification.Monto:N2}.", cancellationToken);
+                await RegistrarAuditoriaAsync(notification.Cuenta, "Retiro", notification.Monto, $"Se debitÃ³ de la cuenta ${notification.Monto:N2}.", cancellationToken);
                 
                 string htmlContent = EmailTemplates.BuildWithdrawHtml(notification.Cuenta, notification.Monto);
                 string titularNombre = notification.Cuenta.Usuario?.Nombre ?? "Cliente";
                 
-                await EnviarEmailAsync(titularNombre, "Confirmación de Retiro - Banco Ruby", htmlContent);
-                Log.Information("Auditoría y correo de retiro procesados con éxito (Manejador Unificado).");
+                await EnviarEmailAsync(titularNombre, "ConfirmaciÃ³n de Retiro - Banco Ruby", htmlContent);
+                Log.Information("AuditorÃ­a y correo de retiro procesados con Ã©xito (Manejador Unificado).");
             }
             catch (Exception ex)
             {

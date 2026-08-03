@@ -1,4 +1,4 @@
-using BancoCenit.Features.Cuentas.Domain;
+﻿using BancoCenit.Features.Cuentas.Domain;
 using Dapper;
 using FluentResults;
 using MediatR;
@@ -12,9 +12,7 @@ using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Queries
 {
-    /// <summary>
-    /// Manejador de MediatR para consultar el historial de transacciones utilizando Dapper (alto rendimiento).
-    /// </summary>
+    // Manejador de MediatR para consultar el historial de transacciones utilizando Dapper (alto rendimiento).
     public class ObtenerHistorialQueryHandler : IRequestHandler<ObtenerHistorialQuery, Result<HistorialResponse>>
     {
         private readonly string _connectionString;
@@ -22,7 +20,7 @@ namespace BancoCenit.Features.Cuentas.Application.Queries
         public ObtenerHistorialQueryHandler(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("BancoRuby") 
-                ?? throw new InvalidOperationException("Cadena de conexión 'BancoRuby' no configurada.");
+                ?? throw new InvalidOperationException("Cadena de conexiÃ³n 'BancoRuby' no configurada.");
         }
 
         public async Task<Result<HistorialResponse>> Handle(ObtenerHistorialQuery query, CancellationToken cancellationToken)
@@ -39,7 +37,7 @@ namespace BancoCenit.Features.Cuentas.Application.Queries
 
                 IEnumerable<DbRow> rows = await connection.QueryAsync<DbRow>(sql, new { NumeroCuenta = query.NumeroCuenta });
                 
-                // Si no hay filas, significa que la cuenta no existe o está inactiva
+                // Si no hay filas, significa que la cuenta no existe o estÃ¡ inactiva
                 List<DbRow> rowsList = rows.ToList();
                 if (rowsList.Count == 0)
                 {
@@ -50,7 +48,7 @@ namespace BancoCenit.Features.Cuentas.Application.Queries
                 string titularNombre = rowsList[0].TitularNombre;
 
                 // Mapeamos las filas a la estructura final de HistorialResumen.
-                // Excluimos las filas donde no hay auditorías (es decir, Tipo es nulo debido al LEFT JOIN).
+                // Excluimos las filas donde no hay auditorÃ­as (es decir, Tipo es nulo debido al LEFT JOIN).
                 List<HistorialResumen> historial = rowsList
                     .Where(r => r.Tipo != null)
                     .Select(r => new HistorialResumen(r.Tipo!, r.Monto!.Value, r.Descripcion!, r.CreadoEn!.Value))

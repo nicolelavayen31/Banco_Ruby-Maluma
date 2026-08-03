@@ -1,11 +1,9 @@
-using MediatR;
+﻿using MediatR;
 using BancoCenit.Features.Cuentas.Domain.Entities;
 
 namespace BancoCenit.Features.Cuentas.Domain.Events
 {
-    /// <summary>
-    /// Evento de dominio desencadenado cuando una transferencia se realiza con éxito.
-    /// </summary>
+    // Evento de dominio desencadenado cuando una transferencia se realiza con Ã©xito.
     public record TransferenciaRealizadaEvent(
         Cuenta Origen, 
         Cuenta? Destino, 
@@ -13,9 +11,7 @@ namespace BancoCenit.Features.Cuentas.Domain.Events
         string? TransactionId,
         string NumeroCuentaDestino) : INotification;
 
-    /// <summary>
-    /// Evento de dominio desencadenado cuando una transferencia falla y requiere reversión.
-    /// </summary>
+    // Evento de dominio desencadenado cuando una transferencia falla y requiere reversiÃ³n.
     public record TransferenciaFallidaEvent(
         Cuenta Origen, 
         string NumeroCuentaDestino, 

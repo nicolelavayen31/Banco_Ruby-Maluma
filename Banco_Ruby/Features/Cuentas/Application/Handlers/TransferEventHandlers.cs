@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
@@ -12,9 +12,7 @@ using BancoCenit.Features.Notifications.Infrastructure.Configuration;
 
 namespace BancoCenit.Features.Cuentas.Application.Handlers
 {
-    /// <summary>
-    /// Manejador de eventos para registrar la auditoría de transferencias realizadas de forma desacoplada.
-    /// </summary>
+    // Manejador de eventos para registrar la auditorÃ­a de transferencias realizadas de forma desacoplada.
     public class RegistrarAuditoriaEventHandler : INotificationHandler<TransferenciaRealizadaEvent>
     {
         private readonly ICuentaRepository _repository;
@@ -31,7 +29,7 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
                 decimal comision = notification.Destino is null ? 0.41m : 0m;
                 decimal totalDebitado = notification.Monto + comision;
 
-                // Registrar auditoría para emisor
+                // Registrar auditorÃ­a para emisor
                 var auditOrigen = new Auditoria
                 {
                     CuentaId = notification.Origen.CuentaId,
@@ -39,14 +37,14 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
                     Tipo = "Transferencia enviada",
                     Monto = totalDebitado,
                     Descripcion = notification.Destino is null
-                        ? $"Se envió transferencia interbancaria de ${notification.Monto:N2} a la cuenta externa {notification.NumeroCuentaDestino} más comisión de $0.41."
-                        : $"Se envió transferencia de ${notification.Monto:N2} a la cuenta {notification.Destino.NumeroCuenta}.",
+                        ? $"Se enviÃ³ transferencia interbancaria de ${notification.Monto:N2} a la cuenta externa {notification.NumeroCuentaDestino} mÃ¡s comisiÃ³n de $0.41."
+                        : $"Se enviÃ³ transferencia de ${notification.Monto:N2} a la cuenta {notification.Destino.NumeroCuenta}.",
                     CreadoEn = DateTime.UtcNow
                 };
 
                 await _repository.RegistrarAuditoriaAsync(auditOrigen, cancellationToken);
 
-                // Registrar auditoría para receptor (solo si es local)
+                // Registrar auditorÃ­a para receptor (solo si es local)
                 if (notification.Destino is not null)
                 {
                     var auditDestino = new Auditoria
@@ -55,25 +53,23 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
                         NumeroCuenta = notification.Destino.NumeroCuenta,
                         Tipo = "Transferencia recibida",
                         Monto = notification.Monto,
-                        Descripcion = $"Se recibió transferencia de la cuenta {notification.Origen.NumeroCuenta} por ${notification.Monto:N2}.",
+                        Descripcion = $"Se recibiÃ³ transferencia de la cuenta {notification.Origen.NumeroCuenta} por ${notification.Monto:N2}.",
                         CreadoEn = DateTime.UtcNow
                     };
                     await _repository.RegistrarAuditoriaAsync(auditDestino, cancellationToken);
                 }
 
                 await _repository.SaveChangesAsync(cancellationToken);
-                Log.Information("Auditoría de transferencia registrada exitosamente para la cuenta {NumeroCuenta}", notification.Origen.NumeroCuenta);
+                Log.Information("AuditorÃ­a de transferencia registrada exitosamente para la cuenta {NumeroCuenta}", notification.Origen.NumeroCuenta);
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error crítico al registrar auditoría de transferencia realizada");
+                Log.Error(ex, "Error crÃ­tico al registrar auditorÃ­a de transferencia realizada");
             }
         }
     }
 
-    /// <summary>
-    /// Manejador de eventos para enviar notificaciones por correo electrónico al emisor de forma asíncrona.
-    /// </summary>
+    // Manejador de eventos para enviar notificaciones por correo electrÃ³nico al emisor de forma asÃ­ncrona.
     public class EnviarNotificacionEmailEventHandler : 
         INotificationHandler<TransferenciaRealizadaEvent>,
         INotificationHandler<TransferenciaFallidaEvent>
@@ -93,7 +89,7 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
         {
             try
             {
-                string subject = "Confirmación de Transferencia - Banco Ruby";
+                string subject = "ConfirmaciÃ³n de Transferencia - Banco Ruby";
                 string htmlContent = $@"
                     <html>
                         <body style='font-family: Arial, sans-serif; color: #333;'>
@@ -120,17 +116,17 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
                                     </tr>
                                 </table>
                                 <br/>
-                                <p style='font-size: 12px; color: #777;'>Este es un correo transaccional automático enviado de forma segura por Banco Ruby.</p>
+                                <p style='font-size: 12px; color: #777;'>Este es un correo transaccional automÃ¡tico enviado de forma segura por Banco Ruby.</p>
                             </div>
                         </body>
                     </html>";
 
                 await EnviarEmailAsync(notification.Origen.Usuario?.Nombre ?? "Cliente", subject, htmlContent);
-                Log.Information("Correo de confirmación de transferencia enviado.");
+                Log.Information("Correo de confirmaciÃ³n de transferencia enviado.");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error al enviar correo de confirmación de transferencia");
+                Log.Error(ex, "Error al enviar correo de confirmaciÃ³n de transferencia");
             }
         }
 
@@ -158,17 +154,17 @@ namespace BancoCenit.Features.Cuentas.Application.Handlers
                                     </tr>
                                 </table>
                                 <br/>
-                                <p style='font-size: 12px; color: #777;'>Este es un correo transaccional automático enviado de forma segura por Banco Ruby.</p>
+                                <p style='font-size: 12px; color: #777;'>Este es un correo transaccional automÃ¡tico enviado de forma segura por Banco Ruby.</p>
                             </div>
                         </body>
                     </html>";
 
                 await EnviarEmailAsync(notification.Origen.Usuario?.Nombre ?? "Cliente", subject, htmlContent);
-                Log.Information("Correo de reversión por transferencia fallida enviado.");
+                Log.Information("Correo de reversiÃ³n por transferencia fallida enviado.");
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Error al enviar correo de reversión por transferencia fallida");
+                Log.Error(ex, "Error al enviar correo de reversiÃ³n por transferencia fallida");
             }
         }
 

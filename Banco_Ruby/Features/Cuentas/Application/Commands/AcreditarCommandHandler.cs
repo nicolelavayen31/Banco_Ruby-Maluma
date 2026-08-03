@@ -1,32 +1,26 @@
-using BancoCenit.Features.Cuentas.Domain.Entities;
+﻿using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using FluentResults;
 using MediatR;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
-    /// <summary>
-    /// Manejador de MediatR para procesar la acreditación de fondos en cuentas de Banco Ruby.
-    /// Utiliza la abstracción del repositorio para desacoplar el negocio de Entity Framework.
-    /// </summary>
+    // Manejador de MediatR para procesar la acreditaciÃ³n de fondos en cuentas de Banco Ruby.
+    // Utiliza la abstracciÃ³n del repositorio para desacoplar el negocio de Entity Framework.
     public class AcreditarCommandHandler : IRequestHandler<AcreditarCommand, Result<OperacionResponse>>
     {
         private readonly ICuentaRepository _repository;
 
-        /// <summary>
-        /// Inicializa una nueva instancia de la clase <see cref="AcreditarCommandHandler"/> con el repositorio.
-        /// </summary>
+        // Inicializa una nueva instancia de la clase AcreditarCommandHandler con el repositorio.
         public AcreditarCommandHandler(ICuentaRepository repository)
         {
             _repository = repository;
         }
 
-        /// <summary>
-        /// Procesa la solicitud del comando, validando la cuenta de destino y sumando el saldo de manera transaccional.
-        /// </summary>
+        // Procesa la solicitud del comando, validando la cuenta de destino y sumando el saldo de manera transaccional.
         public async Task<Result<OperacionResponse>> Handle(AcreditarCommand command, CancellationToken cancellationToken)
         {
-            // Evita abonos inválidos con montos negativos o nulos.
+            // Evita abonos invÃ¡lidos con montos negativos o nulos.
             if (command.Monto <= 0)
             {
                 return Result.Fail<OperacionResponse>("El monto debe ser mayor a cero.");
@@ -44,23 +38,23 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             // Incrementa el saldo disponible de la cuenta
             cuenta.Acreditar(command.Monto);
 
-            // Instancia el registro de auditoría con la descripción del origen de los fondos.
+            // Instancia el registro de auditorÃ­a con la descripciÃ³n del origen de los fondos.
             var auditoria = new Auditoria
             {
                 CuentaId = cuenta.CuentaId,
                 NumeroCuenta = cuenta.NumeroCuenta,
                 Tipo = "Transferencia Interbancaria Recibida",
                 Monto = command.Monto,
-                Descripcion = $"Abono recibido vía Integrador ATM desde {command.BancoOrigen ?? "Banco Externo"} (Cuenta {command.CuentaOrigen ?? "Desconocida"}). Concepto: {command.Concepto ?? "Transferencia Interbancaria"}",
+                Descripcion = $"Abono recibido vÃ­a Integrador ATM desde {command.BancoOrigen ?? "Banco Externo"} (Cuenta {command.CuentaOrigen ?? "Desconocida"}). Concepto: {command.Concepto ?? "Transferencia Interbancaria"}",
                 CreadoEn = DateTime.UtcNow
             };
 
-            // Iniciar transacción de base de datos
+            // Iniciar transacciÃ³n de base de datos
             await _repository.BeginTransactionAsync(cancellationToken);
 
             try
             {
-                // Registra la auditoría y actualiza la cuenta en la base de datos de manera atómica
+                // Registra la auditorÃ­a y actualiza la cuenta en la base de datos de manera atÃ³mica
                 await _repository.RegistrarAuditoriaAsync(auditoria, cancellationToken);
                 await _repository.UpdateAsync(cuenta, cancellationToken);
                 

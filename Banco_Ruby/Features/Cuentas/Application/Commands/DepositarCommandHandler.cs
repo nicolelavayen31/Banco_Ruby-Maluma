@@ -1,4 +1,4 @@
-using BancoCenit.Features.Cuentas.Domain.Entities;
+﻿using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using BancoCenit.Features.Cuentas.Domain.Events;
 using FluentResults;
@@ -8,9 +8,7 @@ using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
-    /// <summary>
-    /// Manejador de MediatR para depositar fondos en Banco Ruby.
-    /// </summary>
+    // Manejador de MediatR para depositar fondos en Banco Ruby.
     public class DepositarCommandHandler : IRequestHandler<DepositarCommand, Result<OperacionResponse>>
     {
         private readonly ICuentaRepository _repository;
@@ -45,9 +43,9 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
             await _repository.UpdateAsync(cuenta, cancellationToken);
             await _repository.SaveChangesAsync(cancellationToken);
 
-            string msg = $"Depósito de ${command.Monto:N2} realizado.";
+            string msg = $"DepÃ³sito de ${command.Monto:N2} realizado.";
 
-            // Publicar Evento de Dominio de Depósito Realizado con éxito (Desacoplado de la transacción)
+            // Publicar Evento de Dominio de DepÃ³sito Realizado con Ã©xito (Desacoplado de la transacciÃ³n)
             await _mediator.Publish(new DepositoRealizadoEvent(cuenta, command.Monto), cancellationToken);
 
             return Result.Ok(new OperacionResponse(msg, cuenta.Saldo));

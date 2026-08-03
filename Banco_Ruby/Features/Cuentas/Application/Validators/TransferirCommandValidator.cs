@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using BancoCenit.Features.Cuentas.Application.Commands;
 
 namespace BancoCenit.Features.Cuentas.Application.Validators
@@ -8,12 +8,12 @@ namespace BancoCenit.Features.Cuentas.Application.Validators
         public TransferirCommandValidator()
         {
             RuleFor(x => x.NumeroCuentaOrigen)
-                .NotEmpty().WithMessage("El número de cuenta de origen es obligatorio.")
-                .Length(10, 50).WithMessage("El número de cuenta de origen debe tener entre 10 y 50 caracteres.");
+                .NotEmpty().WithMessage("El nÃºmero de cuenta de origen es obligatorio.")
+                .Length(10, 50).WithMessage("El nÃºmero de cuenta de origen debe tener entre 10 y 50 caracteres.");
 
             RuleFor(x => x.NumeroCuentaDestino)
-                .NotEmpty().WithMessage("El número de cuenta de destino es obligatorio.")
-                .Length(10, 50).WithMessage("El número de cuenta de destino debe tener entre 10 y 50 caracteres.");
+                .NotEmpty().WithMessage("El nÃºmero de cuenta de destino es obligatorio.")
+                .Length(10, 50).WithMessage("El nÃºmero de cuenta de destino debe tener entre 10 y 50 caracteres.");
 
             RuleFor(x => x.Monto)
                 .GreaterThan(0).WithMessage("El monto a transferir debe ser mayor que cero.");

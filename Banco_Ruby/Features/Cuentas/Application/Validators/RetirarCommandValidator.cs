@@ -1,4 +1,4 @@
-using FluentValidation;
+﻿using FluentValidation;
 using BancoCenit.Features.Cuentas.Application.Commands;
 
 namespace BancoCenit.Features.Cuentas.Application.Validators
@@ -8,8 +8,8 @@ namespace BancoCenit.Features.Cuentas.Application.Validators
         public RetirarCommandValidator()
         {
             RuleFor(x => x.NumeroCuenta)
-                .NotEmpty().WithMessage("El número de cuenta es obligatorio.")
-                .Length(10, 50).WithMessage("El número de cuenta debe tener entre 10 y 50 caracteres.");
+                .NotEmpty().WithMessage("El nÃºmero de cuenta es obligatorio.")
+                .Length(10, 50).WithMessage("El nÃºmero de cuenta debe tener entre 10 y 50 caracteres.");
 
             RuleFor(x => x.Monto)
                 .GreaterThan(0).WithMessage("El monto a retirar debe ser mayor que cero.");

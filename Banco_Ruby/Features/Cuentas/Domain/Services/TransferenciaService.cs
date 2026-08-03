@@ -1,94 +1,82 @@
-using System;
+﻿using System;
 using System.Threading.Tasks;
 using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Application.DTOs;
 
 namespace BancoCenit.Features.Cuentas.Domain.Services
 {
-    /// <summary>
-    /// Encapsula el resultado de la ejecución de una transferencia bancaria.
-    /// </summary>
+    // Encapsula el resultado de la ejecuciÃ³n de una transferencia bancaria.
     public sealed class TransferenciaExecutionResult
     {
-        /// <summary>
-        /// Obtiene si la operación se completó exitosamente.
-        /// </summary>
+        // Obtiene si la operaciÃ³n se completÃ³ exitosamente.
         public bool IsSuccess { get; }
 
-        /// <summary>
-        /// Mensaje de error descriptivo en caso de que la operación haya fallado.
-        /// </summary>
+        // Mensaje de error descriptivo en caso de que la operaciÃ³n haya fallado.
         public string? Error { get; }
 
-        /// <summary>
-        /// Constructor privado para inicializar el resultado.
-        /// </summary>
-        /// <param name="isSuccess">Indica éxito.</param>
-        /// <param name="error">Mensaje de error.</param>
+        // Constructor privado para inicializar el resultado.
+        // isSuccess: Indica Ã©xito.
+        // error: Mensaje de error.
         private TransferenciaExecutionResult(bool isSuccess, string? error)
         {
             IsSuccess = isSuccess;
             Error = error;
         }
 
-        /// <summary>
-        /// Crea un resultado exitoso para la transacción.
-        /// </summary>
-        /// <returns>Instancia exitosa de <see cref="TransferenciaExecutionResult"/>.</returns>
+        // Crea un resultado exitoso para la transacciÃ³n.
+        // <returns>Instancia exitosa de TransferenciaExecutionResult.</returns>
         public static TransferenciaExecutionResult Success() => new(true, null);
 
-        /// <summary>
-        /// Crea un resultado fallido con la causa del error.
-        /// </summary>
-        /// <param name="error">La razón del fallo.</param>
-        /// <returns>Instancia fallida de <see cref="TransferenciaExecutionResult"/>.</returns>
+        // Crea un resultado fallido con la causa del error.
+        // error: La razÃ³n del fallo.
+        // <returns>Instancia fallida de TransferenciaExecutionResult.</returns>
         public static TransferenciaExecutionResult Failure(string error) => new(false, error);
     }
 
-    /// <summary>
-    /// Servicio de Dominio encargado de aplicar las reglas de negocio críticas para transferencias bancarias.
-    /// Valida saldos, realiza débitos/créditos locales, y coordina la reversión en caso de fallas externas.
-    /// </summary>
+    // Servicio de Dominio encargado de aplicar las reglas de negocio crÃ­ticas para transferencias bancarias.
+    // Es un servicio de dominio puro porque no tiene estado y coordina la lÃ³gica transaccional que abarca
+    // mÃºltiples entidades y llamadas externas antes de persistir los cambios.
+    // Valida saldos, realiza dÃ©bitos/crÃ©ditos locales, y coordina la reversiÃ³n (rollback) en memoria en caso de fallas externas.
     public static class TransferenciaService
     {
-        /// <summary>
-        /// Ejecuta la lógica transaccional de una transferencia (débito, crédito opcional, envío y rollback).
-        /// </summary>
-        /// <param name="origen">Cuenta origen de donde se debitarán los fondos.</param>
-        /// <param name="destino">Cuenta destino (nula si es una transferencia interbancaria hacia un banco externo).</param>
-        /// <param name="request">Los detalles de la transferencia (monto).</param>
-        /// <param name="enviarTransferencia">Función callback que conecta con el canal externo del integrador/pasarela.</param>
-        /// <returns>Un resultado que detalla el éxito o el error de la operación.</returns>
+        // Ejecuta la lÃ³gica transaccional pura de una transferencia (dÃ©bito, comisiÃ³n interbancaria, crÃ©dito local y rollback en memoria).
+        // origen: La entidad Cuenta emisora de la transacciÃ³n.
+        // destino: La entidad Cuenta receptora (serÃ¡ null si la transferencia es interbancaria hacia un banco externo).
+        // request: Los detalles de la transferencia (monto).
+        // enviarTransferencia: FunciÃ³n callback que conecta con el canal externo del integrador/pasarela.
+        // Retorna: Un resultado del dominio encapsulado en TransferenciaExecutionResult indicando Ã©xito o error detallado.
         public static async Task<TransferenciaExecutionResult> EjecutarTransferenciaAsync(
             Cuenta origen,
             Cuenta? destino,
             TransferenciaRequest request,
             Func<Task> enviarTransferencia)
         {
-            // Evita que se realicen transferencias con montos menores o iguales a cero.
+            // Regla de Negocio: No se permiten transferencias con montos menores o iguales a cero.
             if (request.Monto <= 0)
             {
                 return TransferenciaExecutionResult.Failure("El monto debe ser mayor que cero.");
             }
 
-            // Si es interbancaria (destino es nulo), se cobra una comisión de 0.41m.
+            // Regla de Negocio: Si la cuenta destino es nula (externa/interbancaria), se cobra una comisiÃ³n de $0.41.
+            // Si la transferencia es local (mismo banco), la comisiÃ³n es de $0.00.
             decimal comision = destino is null ? 0.41m : 0m;
             decimal totalDebitado = request.Monto + comision;
 
-            // Valida que el emisor tenga saldo suficiente para cubrir el monto + comisión.
+            // Regla de Negocio: Verifica que el saldo de la cuenta origen sea suficiente para cubrir el monto solicitado mÃ¡s la comisiÃ³n correspondiente.
             if (totalDebitado > origen.Saldo)
             {
                 return TransferenciaExecutionResult.Failure("Fondos insuficientes en la cuenta origen.");
             }
 
-            // Resguarda los saldos antes de la operación en caso de requerir rollback.
+            // Resguarda los saldos en variables temporales antes de realizar cambios.
+            // Si el callback externo del integrador falla, restauraremos estos valores para evitar saldos inconsistentes.
             decimal saldoOrigenAntes = origen.Saldo;
             decimal? saldoDestinoAntes = destino?.Saldo;
 
-            // Se debita el monto de la cuenta de origen.
+            // Paso 1: Debita el total (monto + comisiÃ³n) de la cuenta de origen local
             origen.Debitar(totalDebitado);
 
-            // Si la cuenta destino es local, se le acredita el monto.
+            // Paso 2: Si la cuenta destino es del mismo banco (local), acredita los fondos inmediatamente
             if (destino is not null)
             {
                 destino.Acreditar(request.Monto);
@@ -96,19 +84,21 @@ namespace BancoCenit.Features.Cuentas.Domain.Services
 
             try
             {
-                // Invoca la pasarela o canal externo de comunicación.
+                // Paso 3: Invoca la pasarela o canal externo de comunicaciÃ³n (Integrador ATM)
+                // Se ejecuta mediante un callback inyectado para mantener el dominio desacoplado de la infraestructura HTTP.
                 await enviarTransferencia();
                 return TransferenciaExecutionResult.Success();
             }
             catch (Exception ex)
             {
-                // Revierte el saldo a su estado original si ocurre un fallo de red o rechazo de pasarela.
+                // Paso 4 (CompensaciÃ³n): Si la llamada externa fallÃ³ por timeout, error de red o rechazo de pasarela,
+                // revertimos los saldos locales en memoria a sus valores iniciales guardados antes de debitar.
                 origen.RestaurarSaldo(saldoOrigenAntes);
                 if (destino is not null && saldoDestinoAntes.HasValue)
                 {
                     destino.RestaurarSaldo(saldoDestinoAntes.Value);
                 }
-                return TransferenciaExecutionResult.Failure($"Transacción fallida. Se devolvió el monto a la cuenta {origen.NumeroCuenta}. Detalle: {ex.Message}");
+                return TransferenciaExecutionResult.Failure($"TransacciÃ³n fallida. Se devolviÃ³ el monto a la cuenta {origen.NumeroCuenta}. Detalle: {ex.Message}");
             }
         }
     }

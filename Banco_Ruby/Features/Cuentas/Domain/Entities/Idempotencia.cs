@@ -1,26 +1,18 @@
-using System;
+﻿using System;
 
 namespace BancoCenit.Features.Cuentas.Domain.Entities
 {
-    /// <summary>
-    /// Registra el resultado de una operación financiera por su identificador único (TransactionId)
-    /// para evitar el doble procesamiento (idempotencia).
-    /// </summary>
+    // Registra el resultado de una operaciÃ³n financiera por su identificador Ãºnico (TransactionId)
+    // para evitar el doble procesamiento (idempotencia).
     public sealed class Idempotencia
     {
-        /// <summary>
-        /// Identificador único de la transacción enviado por el cliente o integrador.
-        /// </summary>
+        // Identificador Ãºnico de la transacciÃ³n enviado por el cliente o integrador.
         public string TransactionId { get; set; } = default!;
 
-        /// <summary>
-        /// Respuesta serializada en JSON de la transacción previa para ser devuelta en peticiones repetidas.
-        /// </summary>
+        // Respuesta serializada en JSON de la transacciÃ³n previa para ser devuelta en peticiones repetidas.
         public string ResponseJson { get; set; } = default!;
 
-        /// <summary>
-        /// Fecha y hora de creación del registro.
-        /// </summary>
+        // Fecha y hora de creaciÃ³n del registro.
         public DateTime CreadoEn { get; set; } = DateTime.UtcNow;
     }
 }

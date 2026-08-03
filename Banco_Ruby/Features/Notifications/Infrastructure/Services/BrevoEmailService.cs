@@ -11,35 +11,29 @@ using Microsoft.Extensions.Options;
 
 namespace BancoCenit.Features.Notifications.Infrastructure.Services
 {
-    /// <summary>
-    /// Implementación concreta de <see cref="IEmailService"/> utilizando la API REST de Brevo.
-    /// Realiza peticiones HTTP no bloqueantes al servidor de correo transaccional de Brevo.
-    /// </summary>
+    // ImplementaciÃ³n concreta de IEmailService utilizando la API REST de Brevo.
+    // Realiza peticiones HTTP no bloqueantes al servidor de correo transaccional de Brevo.
     public sealed class BrevoEmailService : IEmailService
     {
         private readonly HttpClient _httpClient;
         private readonly BrevoOptions _options;
 
-        /// <summary>
-        /// Inicializa una nueva instancia de <see cref="BrevoEmailService"/> inyectando su HttpClient y las opciones de Brevo.
-        /// </summary>
+        // Inicializa una nueva instancia de BrevoEmailService inyectando su HttpClient y las opciones de Brevo.
         public BrevoEmailService(HttpClient httpClient, IOptions<BrevoOptions> options)
         {
             _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
             _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
 
-            // Configuración base del cliente HTTP para consumir la API de Brevo
+            // ConfiguraciÃ³n base del cliente HTTP para consumir la API de Brevo
             _httpClient.BaseAddress = new Uri("https://api.brevo.com/");
             _httpClient.DefaultRequestHeaders.Accept.Clear();
             _httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
             
-            // Establece la API Key de autorización provista por Brevo
+            // Establece la API Key de autorizaciÃ³n provista por Brevo
             _httpClient.DefaultRequestHeaders.Add("api-key", _options.ApiKey);
         }
 
-        /// <summary>
-        /// Envía el correo electrónico de forma transaccional mediante llamada POST a la API SMTP.
-        /// </summary>
+        // EnvÃ­a el correo electrÃ³nico de forma transaccional mediante llamada POST a la API SMTP.
         public async Task<bool> SendEmailAsync(
             string toEmail, 
             string toName, 
@@ -69,17 +63,23 @@ namespace BancoCenit.Features.Notifications.Infrastructure.Services
                     htmlContent = htmlContent
                 };
 
-                // Realiza la petición POST de forma asíncrona enviando el JSON
+                // Realiza la peticiÃ³n POST de forma asÃ­ncrona enviando el JSON
                 HttpResponseMessage response = await _httpClient.PostAsJsonAsync(
                     "v3/smtp/email", 
                     payload, 
                     cancellationToken);
 
+                if (!response.IsSuccessStatusCode)
+                {
+                    string errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    Console.WriteLine($"[BrevoEmailService] Error al enviar correo (HTTP {(int)response.StatusCode}): {errorContent}");
+                }
+
                 return response.IsSuccessStatusCode;
             }
             catch
             {
-                // Si ocurre algún fallo de red o tiempo de espera agotado, retorna false
+                // Si ocurre algÃºn fallo de red o tiempo de espera agotado, retorna false
                 return false;
             }
         }

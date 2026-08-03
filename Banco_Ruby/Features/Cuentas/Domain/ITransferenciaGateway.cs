@@ -1,19 +1,15 @@
-namespace BancoCenit.Features.Cuentas.Domain
+﻿namespace BancoCenit.Features.Cuentas.Domain
 {
-    /// <summary>
-    /// Define la pasarela o puerto de salida para el envío de transferencias hacia el intermediario (Integrador ATM o banco destino).
-    /// Sigue el principio de Dependency Inversion de Clean Architecture.
-    /// </summary>
+    // Define la pasarela o puerto de salida para el envÃ­o de transferencias hacia el intermediario (Integrador ATM o banco destino).
+    // Sigue el principio de Dependency Inversion de Clean Architecture.
     public interface ITransferenciaGateway
     {
-        /// <summary>
-        /// Envía una transacción de transferencia de forma asíncrona hacia la pasarela de pagos.
-        /// </summary>
-        /// <param name="cuentaOrigenUuid">UUID de la cuenta origen en el integrador (o número de cuenta si no tiene UUID).</param>
-        /// <param name="cuentaDestinoUuid">UUID de la cuenta destino en el integrador (o número de cuenta si no tiene UUID).</param>
-        /// <param name="monto">Monto total de la transferencia.</param>
-        /// <param name="cancellationToken">Token de cancelación para la operación asíncrona.</param>
-        /// <returns>Una tarea que representa la operación de envío.</returns>
+        // EnvÃ­a una transacciÃ³n de transferencia de forma asÃ­ncrona hacia la pasarela de pagos.
+        // cuentaOrigenUuid: UUID de la cuenta origen en el integrador (o nÃºmero de cuenta si no tiene UUID).
+        // cuentaDestinoUuid: UUID de la cuenta destino en el integrador (o nÃºmero de cuenta si no tiene UUID).
+        // monto: Monto total de la transferencia.
+        // cancellationToken: Token de cancelaciÃ³n para la operaciÃ³n asÃ­ncrona.
+        // Retorna: Una tarea que representa la operaciÃ³n de envÃ­o.
         Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, decimal monto, CancellationToken cancellationToken = default);
     }
 }

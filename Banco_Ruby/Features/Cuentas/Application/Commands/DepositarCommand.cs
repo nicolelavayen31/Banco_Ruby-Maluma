@@ -1,10 +1,8 @@
-using FluentResults;
+﻿using FluentResults;
 using MediatR;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
-    /// <summary>
-    /// Comando MediatR para depositar efectivo en una cuenta local.
-    /// </summary>
+    // Comando MediatR para depositar efectivo en una cuenta local.
     public record DepositarCommand(string NumeroCuenta, decimal Monto) : IRequest<Result<OperacionResponse>>;
 }

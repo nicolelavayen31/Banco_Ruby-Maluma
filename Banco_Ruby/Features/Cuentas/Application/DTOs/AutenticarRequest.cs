@@ -1,8 +1,6 @@
-namespace BancoCenit.Features.Cuentas.Application.DTOs
+﻿namespace BancoCenit.Features.Cuentas.Application.DTOs
 {
-    /// <summary>
-    /// DTO que representa una solicitud de autenticación de cuenta mediante PIN.
-    /// </summary>
-    /// <param name="Pin">El PIN de seguridad del cliente.</param>
+    // DTO que representa una solicitud de autenticaciÃ³n de cuenta mediante PIN.
+    // Pin: El PIN de seguridad del cliente.
     public sealed record AutenticarRequest(string Pin);
 }

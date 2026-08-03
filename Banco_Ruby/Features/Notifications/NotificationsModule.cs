@@ -1,4 +1,4 @@
-using BancoCenit.Features.Notifications.Domain;
+﻿using BancoCenit.Features.Notifications.Domain;
 using BancoCenit.Features.Notifications.Infrastructure.Configuration;
 using BancoCenit.Features.Notifications.Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
@@ -6,17 +6,13 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BancoCenit.Features.Notifications
 {
-    /// <summary>
-    /// Módulo modular que registra los servicios y configuraciones de la característica de Notificaciones en Banco Ruby.
-    /// </summary>
+    // MÃ³dulo modular que registra los servicios y configuraciones de la caracterÃ­stica de Notificaciones en Banco Ruby.
     public static class NotificationsModule
     {
-        /// <summary>
-        /// Registra en el contenedor de IoC la configuración de Brevo y el BrevoEmailService usando HttpClient tipado.
-        /// </summary>
+        // Registra en el contenedor de IoC la configuraciÃ³n de Brevo y el BrevoEmailService usando HttpClient tipado.
         public static IServiceCollection AddNotificationsServices(this IServiceCollection services, IConfiguration configuration)
         {
-            // Vincula la sección "Brevo" de appsettings.json al objeto BrevoOptions
+            // Vincula la secciÃ³n "Brevo" de appsettings.json al objeto BrevoOptions
             services.Configure<BrevoOptions>(configuration.GetSection("Brevo"));
 
             // Registra el HttpClient tipado para BrevoEmailService

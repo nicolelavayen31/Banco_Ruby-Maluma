@@ -3,66 +3,49 @@ using FluentResults;
 
 namespace BancoCenit.Features.Cuentas.Domain
 {
-    /// <summary>
-    /// Interfaz del repositorio de cuentas de Banco Ruby.
-    /// Define los métodos de acceso y actualización de la entidad Cuenta, desacoplando el negocio de Entity Framework.
-    /// </summary>
+    // Interfaz del repositorio de cuentas de Banco Ruby.
+    // Define los mÃ©todos de acceso y actualizaciÃ³n de la entidad Cuenta, desacoplando el negocio de Entity Framework.
     public interface ICuentaRepository
     {
-        /// <summary>
-        /// Recupera una cuenta de la base de datos por su número único de cuenta, validando que esté activa.
-        /// </summary>
-        /// <param name="numeroCuenta">Número de la cuenta bancaria.</param>
-        /// <param name="cancellationToken">Token de cancelación.</param>
-        /// <returns>La cuenta encontrada envuelta en un Result, o un error si no se encuentra o está inactiva.</returns>
+        // Recupera una cuenta de la base de datos por su nÃºmero Ãºnico de cuenta, validando que estÃ© activa.
+        // numeroCuenta: NÃºmero de la cuenta bancaria.
+        // cancellationToken: Token de cancelaciÃ³n.
+        // Retorna: La cuenta encontrada envuelta en un Result, o un error si no se encuentra o estÃ¡ inactiva.
         Task<Result<Cuenta>> GetByNumeroCuentaAsync(string numeroCuenta, CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Sincroniza y persiste las modificaciones sobre los atributos de una cuenta en la base de datos.
-        /// </summary>
-        /// <param name="cuenta">Entidad cuenta con datos actualizados.</param>
-        /// <param name="cancellationToken">Token de cancelación.</param>
-        /// <returns>Una tarea asíncrona de actualización.</returns>
+        // Sincroniza y persiste las modificaciones sobre los atributos de una cuenta en la base de datos.
+        // cuenta: Entidad cuenta con datos actualizados.
+        // cancellationToken: Token de cancelaciÃ³n.
+        // Retorna: Una tarea asÃ­ncrona de actualizaciÃ³n.
         Task UpdateAsync(Cuenta cuenta, CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Agrega una auditoría de transacción a la base de datos.
-        /// </summary>
-        /// <param name="auditoria">Registro de auditoría.</param>
-        /// <param name="cancellationToken">Token de cancelación.</param>
-        /// <returns>Una tarea asíncrona de guardado.</returns>
+        // Agrega una auditorÃ­a de transacciÃ³n a la base de datos.
+        // auditoria: Registro de auditorÃ­a.
+        // cancellationToken: Token de cancelaciÃ³n.
+        // Retorna: Una tarea asÃ­ncrona de guardado.
         Task RegistrarAuditoriaAsync(Auditoria auditoria, CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Guarda todos los cambios pendientes en el contexto de persistencia.
-        /// </summary>
-        /// <param name="cancellationToken">Token de cancelación.</param>
-        /// <returns>Una tarea asíncrona de confirmación.</returns>
+        // Guarda todos los cambios pendientes en el contexto de persistencia.
+        // cancellationToken: Token de cancelaciÃ³n.
+        // Retorna: Una tarea asÃ­ncrona de confirmaciÃ³n.
         Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Inicia una transacción de base de datos de manera asíncrona.
-        /// </summary>
+        // Inicia una transacciÃ³n de base de datos de manera asÃ­ncrona.
         Task BeginTransactionAsync(CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Confirma la transacción actual de base de datos de manera asíncrona.
-        /// </summary>
+        // Confirma la transacciÃ³n actual de base de datos de manera asÃ­ncrona.
         Task CommitTransactionAsync(CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Revierte la transacción actual de base de datos de manera asíncrona.
-        /// </summary>
+        // Revierte la transacciÃ³n actual de base de datos de manera asÃ­ncrona.
         Task RollbackTransactionAsync(CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Obtiene un registro de idempotencia por su identificador único.
-        /// </summary>
+        // Obtiene una cuenta activa en base a su IntegradorAccountId del Integrador ATM.
+        Task<Result<Cuenta>> GetByIntegradorAccountIdAsync(string integradorAccountId, CancellationToken cancellationToken = default);
+
+        // Obtiene un registro de idempotencia por su identificador Ãºnico.
         Task<Idempotencia?> GetIdempotenciaAsync(string transactionId, CancellationToken cancellationToken = default);
 
-        /// <summary>
-        /// Registra un nuevo token de idempotencia en la base de datos.
-        /// </summary>
+        // Registra un nuevo token de idempotencia en la base de datos.
         Task RegistrarIdempotenciaAsync(Idempotencia idempotencia, CancellationToken cancellationToken = default);
     }
 }

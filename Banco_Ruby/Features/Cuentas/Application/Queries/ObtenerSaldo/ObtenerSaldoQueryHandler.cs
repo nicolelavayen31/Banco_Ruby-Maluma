@@ -1,4 +1,4 @@
-using BancoCenit.Features.Cuentas.Domain;
+﻿using BancoCenit.Features.Cuentas.Domain;
 using Dapper;
 using FluentResults;
 using MediatR;
@@ -9,9 +9,7 @@ using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Queries
 {
-    /// <summary>
-    /// Manejador de MediatR para consultar el saldo de una cuenta activa en Banco Ruby utilizando Dapper (alto rendimiento).
-    /// </summary>
+    // Manejador de MediatR para consultar el saldo de una cuenta activa en Banco Ruby utilizando Dapper (alto rendimiento).
     public class ObtenerSaldoQueryHandler : IRequestHandler<ObtenerSaldoQuery, Result<SaldoResponse>>
     {
         private readonly string _connectionString;
@@ -19,7 +17,7 @@ namespace BancoCenit.Features.Cuentas.Application.Queries
         public ObtenerSaldoQueryHandler(IConfiguration configuration)
         {
             _connectionString = configuration.GetConnectionString("BancoRuby") 
-                ?? throw new System.InvalidOperationException("Cadena de conexión 'BancoRuby' no configurada.");
+                ?? throw new System.InvalidOperationException("Cadena de conexiÃ³n 'BancoRuby' no configurada.");
         }
 
         public async Task<Result<SaldoResponse>> Handle(ObtenerSaldoQuery query, CancellationToken cancellationToken)

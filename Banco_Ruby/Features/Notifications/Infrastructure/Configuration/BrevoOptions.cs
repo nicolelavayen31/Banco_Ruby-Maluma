@@ -1,29 +1,19 @@
-namespace BancoCenit.Features.Notifications.Infrastructure.Configuration
+﻿namespace BancoCenit.Features.Notifications.Infrastructure.Configuration
 {
-    /// <summary>
-    /// Configuración tipada para el cliente de correo Brevo API.
-    /// Mapea las propiedades declaradas en appsettings.json.
-    /// </summary>
+    // ConfiguraciÃ³n tipada para el cliente de correo Brevo API.
+    // Mapea las propiedades declaradas en appsettings.json.
     public sealed class BrevoOptions
     {
-        /// <summary>
-        /// Api Key de autenticación provista por Brevo.
-        /// </summary>
+        // Api Key de autenticaciÃ³n provista por Brevo.
         public string ApiKey { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Correo electrónico institucional del emisor (remitente).
-        /// </summary>
+        // Correo electrÃ³nico institucional del emisor (remitente).
         public string SenderEmail { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Nombre comercial del emisor (remitente).
-        /// </summary>
+        // Nombre comercial del emisor (remitente).
         public string SenderName { get; set; } = string.Empty;
 
-        /// <summary>
-        /// Lista de correos destinatarios de prueba separados por coma.
-        /// </summary>
+        // Lista de correos destinatarios de prueba separados por coma.
         public string DestinatariosPrueba { get; set; } = string.Empty;
     }
 }

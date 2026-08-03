@@ -1,4 +1,4 @@
-using BancoCenit.Features.Cuentas.Domain.Entities;
+﻿using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Domain;
 using BancoCenit.Features.Cuentas.Domain.Events;
 using FluentResults;
@@ -8,10 +8,8 @@ using System.Threading.Tasks;
 
 namespace BancoCenit.Features.Cuentas.Application.Commands
 {
-    /// <summary>
-    /// Manejador de MediatR para retirar fondos en Banco Ruby.
-    /// Contiene las validaciones físicas y de negocio (billetes de 10, comisiones y límites).
-    /// </summary>
+    // Manejador de MediatR para retirar fondos en Banco Ruby.
+    // Contiene las validaciones fÃ­sicas y de negocio (billetes de 10, comisiones y lÃ­mites).
     public class RetirarCommandHandler : IRequestHandler<RetirarCommand, Result<OperacionResponse>>
     {
         private const decimal COMISION = 0m;
@@ -35,12 +33,12 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
 
             if (command.Monto % 10 != 0)
             {
-                return Result.Fail<OperacionResponse>("El retiro debe ser múltiplo de 10.");
+                return Result.Fail<OperacionResponse>("El retiro debe ser mÃºltiplo de 10.");
             }
 
             if (command.Monto > 500)
             {
-                return Result.Fail<OperacionResponse>("El retiro excede el límite de 500.");
+                return Result.Fail<OperacionResponse>("El retiro excede el lÃ­mite de 500.");
             }
 
             Result<Cuenta> cuentaResult = await _repository.GetByNumeroCuentaAsync(command.NumeroCuenta, cancellationToken);
@@ -66,7 +64,7 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
 
             string msg = $"Retiro de ${command.Monto:N2} realizado.";
 
-            // Publicar Evento de Dominio de Retiro Realizado con éxito (Desacoplado de la transacción)
+            // Publicar Evento de Dominio de Retiro Realizado con Ã©xito (Desacoplado de la transacciÃ³n)
             await _mediator.Publish(new RetiroRealizadoEvent(cuenta, command.Monto), cancellationToken);
 
             return Result.Ok(new OperacionResponse(msg, cuenta.Saldo));

@@ -6,26 +6,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BancoCenit.Features.Cuentas.Infrastructure.Repositories
 {
-    /// <summary>
-    /// Repositorio de cuentas que implementa <see cref="ICuentaRepository"/> para Banco Ruby.
-    /// Encapsula las operaciones del DbContext para persistir y consultar datos de cuentas.
-    /// </summary>
+    // Repositorio de cuentas que implementa ICuentaRepository para Banco Ruby.
+    // Encapsula las operaciones del DbContext para persistir y consultar datos de cuentas.
     public class CuentaRepository : ICuentaRepository
     {
         private readonly BancoRubyDbContext _db;
 
-        /// <summary>
-        /// Inicializa una nueva instancia del repositorio de cuentas con su DbContext.
-        /// </summary>
-        /// <param name="db">El contexto de base de datos de Banco Ruby.</param>
+        // Inicializa una nueva instancia del repositorio de cuentas con su DbContext.
+        // db: El contexto de base de datos de Banco Ruby.
         public CuentaRepository(BancoRubyDbContext db)
         {
             _db = db;
         }
 
-        /// <summary>
-        /// Busca una cuenta activa por su número en la base de datos de forma asíncrona.
-        /// </summary>
+        // Busca una cuenta activa por su nÃºmero en la base de datos de forma asÃ­ncrona.
         public async Task<Result<Cuenta>> GetByNumeroCuentaAsync(string numeroCuenta, CancellationToken cancellationToken = default)
         {
             Cuenta? cuenta = await _db.Cuentas
@@ -40,26 +34,20 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Repositories
             return Result.Ok(cuenta);
         }
 
-        /// <summary>
-        /// Registra la actualización de la cuenta en el contexto de base de datos.
-        /// </summary>
+        // Registra la actualizaciÃ³n de la cuenta en el contexto de base de datos.
         public async Task UpdateAsync(Cuenta cuenta, CancellationToken cancellationToken = default)
         {
             _db.Cuentas.Update(cuenta);
             await _db.SaveChangesAsync(cancellationToken);
         }
 
-        /// <summary>
-        /// Agrega una auditoría de transacción al contexto de base de datos.
-        /// </summary>
+        // Agrega una auditorÃ­a de transacciÃ³n al contexto de base de datos.
         public async Task RegistrarAuditoriaAsync(Auditoria auditoria, CancellationToken cancellationToken = default)
         {
             await _db.Auditoria.AddAsync(auditoria, cancellationToken);
         }
 
-        /// <summary>
-        /// Confirma los cambios realizados en el contexto.
-        /// </summary>
+        // Confirma los cambios realizados en el contexto.
         public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -84,6 +72,20 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Repositories
             {
                 await _db.Database.RollbackTransactionAsync(cancellationToken);
             }
+        }
+
+        public async Task<Result<Cuenta>> GetByIntegradorAccountIdAsync(string integradorAccountId, CancellationToken cancellationToken = default)
+        {
+            Cuenta? cuenta = await _db.Cuentas
+                .Include(c => c.Usuario)
+                .FirstOrDefaultAsync(c => c.IntegradorAccountId == integradorAccountId && c.Estado, cancellationToken);
+
+            if (cuenta == null)
+            {
+                return Result.Fail<Cuenta>($"Cuenta con IntegradorAccountId {integradorAccountId} no encontrada o inactiva en Banco Ruby.");
+            }
+
+            return Result.Ok(cuenta);
         }
 
         public async Task<Idempotencia?> GetIdempotenciaAsync(string transactionId, CancellationToken cancellationToken = default)

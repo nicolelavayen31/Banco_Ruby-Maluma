@@ -1,74 +1,48 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace BancoCenit.Features.Cuentas.Domain.Entities
 {
-    /// <summary>
-    /// Representa a un cliente del banco en el dominio de negocio.
-    /// Contiene datos personales y las cuentas asociadas para su autenticación mediante PIN.
-    /// </summary>
+    // Representa a un cliente del banco en el dominio de negocio.
+    // Contiene datos personales y las cuentas asociadas para su autenticaciÃ³n mediante PIN.
     public sealed class Usuario
     {
-        /// <summary>
-        /// Identificador único del usuario. Clave primaria de la tabla.
-        /// </summary>
+        // Identificador Ãºnico del usuario. Clave primaria de la tabla.
         public int UsuarioId { get; set; }
 
-        /// <summary>
-        /// Nombre completo del titular de la cuenta.
-        /// </summary>
+        // Nombre completo del titular de la cuenta.
         public string Nombre { get; set; } = default!;
 
-        /// <summary>
-        /// Código PIN encriptado (MD5 o hash) utilizado para validar el acceso en cajeros.
-        /// </summary>
+        // CÃ³digo PIN encriptado (MD5 o hash) utilizado para validar el acceso en cajeros.
         public string Pin { get; set; } = default!;
 
-        /// <summary>
-        /// Fecha y hora en la que el usuario fue registrado en el sistema.
-        /// </summary>
+        // Fecha y hora en la que el usuario fue registrado en el sistema.
         public DateTime CreadoEn { get; set; }
 
-        /// <summary>
-        /// Lista de cuentas bancarias pertenecientes a este usuario.
-        /// </summary>
+        // Lista de cuentas bancarias pertenecientes a este usuario.
         public List<Cuenta> Cuentas { get; set; } = new();
     }
 
-    /// <summary>
-    /// Representa la cuenta bancaria de un cliente.
-    /// Custodia el saldo disponible y está vinculada a un titular.
-    /// </summary>
+    // Representa la cuenta bancaria de un cliente.
+    // Custodia el saldo disponible y estÃ¡ vinculada a un titular.
     public sealed class Cuenta
     {
-        /// <summary>
-        /// Identificador único de la cuenta bancaria. Clave primaria.
-        /// </summary>
+        // Identificador Ãºnico de la cuenta bancaria. Clave primaria.
         public int CuentaId { get; set; }
 
-        /// <summary>
-        /// Identificador del usuario propietario de la cuenta. Clave foránea.
-        /// </summary>
+        // Identificador del usuario propietario de la cuenta. Clave forÃ¡nea.
         public int UsuarioId { get; set; }
 
-        /// <summary>
-        /// Referencia al usuario/cliente titular de la cuenta.
-        /// </summary>
+        // Referencia al usuario/cliente titular de la cuenta.
         public Usuario? Usuario { get; set; }
 
-        /// <summary>
-        /// Número de tarjeta o número de cuenta único de 16 dígitos.
-        /// </summary>
+        // NÃºmero de tarjeta o nÃºmero de cuenta Ãºnico de 16 dÃ­gitos.
         public string NumeroCuenta { get; set; } = default!;
 
-        /// <summary>
-        /// Saldo monetario disponible en pesos de la cuenta.
-        /// </summary>
+        // Saldo monetario disponible en pesos de la cuenta.
         public decimal Saldo { get; private set; }
 
-        /// <summary>
-        /// Debita un monto de la cuenta, validando fondos suficientes.
-        /// </summary>
+        // Debita un monto de la cuenta, validando fondos suficientes.
         public void Debitar(decimal monto)
         {
             if (monto <= 0) throw new ArgumentException("El monto a debitar debe ser mayor que cero.");
@@ -76,88 +50,58 @@ namespace BancoCenit.Features.Cuentas.Domain.Entities
             Saldo -= monto;
         }
 
-        /// <summary>
-        /// Acredita un monto a la cuenta.
-        /// </summary>
+        // Acredita un monto a la cuenta.
         public void Acreditar(decimal monto)
         {
             if (monto <= 0) throw new ArgumentException("El monto a acreditar debe ser mayor que cero.");
             Saldo += monto;
         }
 
-        /// <summary>
-        /// Restaura el saldo a un valor anterior en caso de rollback transaccional.
-        /// </summary>
+        // Restaura el saldo a un valor anterior en caso de rollback transaccional.
         public void RestaurarSaldo(decimal saldo)
         {
             Saldo = saldo;
         }
 
-        /// <summary>
-        /// Indica si la cuenta está activa (true) o inactiva/bloqueada (false).
-        /// </summary>
+        // Indica si la cuenta estÃ¡ activa (true) o inactiva/bloqueada (false).
         public bool Estado { get; set; }
 
-        /// <summary>
-        /// Fecha y hora de creación de la cuenta bancaria.
-        /// </summary>
+        // Fecha y hora de creaciÃ³n de la cuenta bancaria.
         public DateTime CreadoEn { get; set; }
 
-        /// <summary>
-        /// Historial de eventos y transacciones financieras registradas sobre esta cuenta.
-        /// </summary>
+        // Historial de eventos y transacciones financieras registradas sobre esta cuenta.
         public List<Auditoria> Auditorias { get; set; } = new();
 
-        /// <summary>
-        /// Identificador UUID de esta cuenta asignado por el Integrador ATM.
-        /// </summary>
+        // Identificador UUID de esta cuenta asignado por el Integrador ATM.
         public string? IntegradorAccountId { get; set; }
     }
 
-    /// <summary>
-    /// Representa un registro histórico de movimientos y auditoría financiera de una cuenta.
-    /// Documenta depósitos, retiros y transferencias para garantizar transparencia y conciliación.
-    /// </summary>
+    // Representa un registro histÃ³rico de movimientos y auditorÃ­a financiera de una cuenta.
+    // Documenta depÃ³sitos, retiros y transferencias para garantizar transparencia y conciliaciÃ³n.
     public sealed class Auditoria
     {
-        /// <summary>
-        /// Identificador único del registro de auditoría.
-        /// </summary>
+        // Identificador Ãºnico del registro de auditorÃ­a.
         public int AuditoriaId { get; set; }
 
-        /// <summary>
-        /// Identificador de la cuenta bancaria afectada por la transacción.
-        /// </summary>
+        // Identificador de la cuenta bancaria afectada por la transacciÃ³n.
         public int CuentaId { get; set; }
 
-        /// <summary>
-        /// Referencia a la cuenta bancaria afectada.
-        /// </summary>
+        // Referencia a la cuenta bancaria afectada.
         public Cuenta? Cuenta { get; set; }
 
-        /// <summary>
-        /// Número de la cuenta bancaria para mantener redundancia histórica rápida.
-        /// </summary>
+        // NÃºmero de la cuenta bancaria para mantener redundancia histÃ³rica rÃ¡pida.
         public string NumeroCuenta { get; set; } = default!;
 
-        /// <summary>
-        /// Tipo de transacción realizada (ej. "Retiro", "Depósito", "Transferencia recibida").
-        /// </summary>
+        // Tipo de transacciÃ³n realizada (ej. "Retiro", "DepÃ³sito", "Transferencia recibida").
         public string Tipo { get; set; } = default!;
 
-        /// <summary>
-        /// Monto implicado en el movimiento financiero.
-        /// </summary>
+        // Monto implicado en el movimiento financiero.
         public decimal Monto { get; set; }
 
-        /// <summary>
-        /// Detalle explicativo de la operación, cuentas involucradas y estado final.
-        /// </summary>
+        // Detalle explicativo de la operaciÃ³n, cuentas involucradas y estado final.
         public string Descripcion { get; set; } = default!;
 
-        /// <summary>
-        /// Fecha y hora en la que se efectuó y registró la transacción.
-        /// </summary>
+        // Fecha y hora en la que se efectuÃ³ y registrÃ³ la transacciÃ³n.
         public DateTime CreadoEn { get; set; }
     }
 }

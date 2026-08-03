@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -9,32 +9,43 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
 {
-    /// <summary>
-    /// Adaptador de infraestructura que implementa la interfaz <see cref="ITransferenciaGateway"/>.
-    /// Conecta con el Integrador ATM central (Bannet) utilizando CSRF, cabeceras de API Key y formato en centavos.
-    /// </summary>
+    // Adaptador de infraestructura que implementa la interfaz ITransferenciaGateway.
+    // Se encarga de la integraciÃ³n externa con el Integrador ATM (BanNet/Cenit).
+    // Este proceso requiere un flujo de seguridad en tres pasos:
+    // 1. ObtenciÃ³n de token CSRF para prevenir falsificaciÃ³n de peticiones en sitios cruzados.
+    // 2. ExtracciÃ³n de la cookie de sesiÃ³n CSRF provista por el servidor.
+    // 3. PropagaciÃ³n de cabeceras de API Key del Convenio, Token CSRF y cookies de seguridad en la peticiÃ³n POST de transferencia.
     public sealed class TransferenciaGateway : ITransferenciaGateway
     {
         private readonly HttpClient _client;
         private readonly IConfiguration _configuration;
 
+        // Inicializa una nueva instancia de la clase TransferenciaGateway.
+        // client: Instancia HttpClient inyectada con Polly preconfigurado en CuentasModule.
+        // configuration: ConfiguraciÃ³n de la aplicaciÃ³n para extraer URLs y credenciales.
         public TransferenciaGateway(HttpClient client, IConfiguration configuration)
         {
             _client = client;
             _configuration = configuration;
         }
 
-        /// <summary>
-        /// Envía los detalles de la transferencia en formato JSON al Integrador ATM central de manera asíncrona.
-        /// </summary>
+        // EnvÃ­a los detalles de la transferencia en formato JSON al Integrador ATM central de manera asÃ­ncrona.
+        // cuentaOrigenUuid: UUID identificador de la cuenta origen en el integrador.
+        // cuentaDestinoUuid: UUID identificador de la cuenta destino en el integrador.
+        // monto: Monto de la transferencia en formato decimal (ej: 10.50).
+        // cancellationToken: Token de cancelaciÃ³n de la tarea asÃ­ncrona.
         public async Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, decimal monto, CancellationToken cancellationToken = default)
         {
+            // Carga de configuraciÃ³n del Integrador ATM desde appsettings.json
             var settings = _configuration.GetSection("IntegradorAtm");
             string baseUrl = settings["BaseUrl"] ?? "http://localhost:7000";
             string apiKey = settings["ApiKey"] ?? "REMPLAZAR_CON_TU_API_KEY_ENTREGADA";
             string sourceBank = settings["SourceBank"] ?? "bank_ruby";
 
-            // Paso 1: Obtener el token CSRF obligatorio (GET /api/csrf-token)
+            // ---------------------------------------------------------------------------------
+            // PASO 1: Obtener el token CSRF obligatorio (GET /api/csrf-token)
+            // ---------------------------------------------------------------------------------
+            // Limpia cabeceras residuales de llamadas anteriores para evitar colisiones de cookies.
             _client.DefaultRequestHeaders.Clear();
             _client.DefaultRequestHeaders.Add("x-api-version", "1");
             
@@ -44,42 +55,51 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
             var csrfResponse = await csrfHttpResponse.Content.ReadFromJsonAsync<CsrfResponse>(cancellationToken: cancellationToken);
             string csrfToken = csrfResponse?.Token ?? throw new Exception("No se pudo obtener el token CSRF del Integrador.");
 
-            // Extraer las cookies enviadas en la respuesta de CSRF
+            // Extrae la cabecera Set-Cookie para volver a mandarla al servidor en el siguiente POST.
+            // Si no se devuelve la cookie junto con el header x-csrf-token, el servidor rechazarÃ¡ la peticiÃ³n.
             string? csrfCookie = null;
             if (csrfHttpResponse.Headers.TryGetValues("Set-Cookie", out var cookieHeaders))
             {
                 csrfCookie = string.Join("; ", cookieHeaders);
             }
 
-            // Paso 2: Configurar cabeceras de autorización y CSRF para el POST
+            // ---------------------------------------------------------------------------------
+            // PASO 2: Configurar cabeceras de autorizaciÃ³n y CSRF para el POST de Transferencia
+            // ---------------------------------------------------------------------------------
             var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/transactions/transfer");
             requestMessage.Headers.Add("x-api-version", "1");
-            requestMessage.Headers.Add("x-api-key", apiKey);          // API Key del Convenio
-            requestMessage.Headers.Add("x-csrf-token", csrfToken);   // Token de validación CSRF
+            requestMessage.Headers.Add("x-api-key", apiKey);          // Clave secreta del convenio con el Integrador
+            requestMessage.Headers.Add("x-csrf-token", csrfToken);   // Token CSRF recibido en el paso 1
             if (!string.IsNullOrEmpty(csrfCookie))
             {
-                requestMessage.Headers.Add("Cookie", csrfCookie);
+                requestMessage.Headers.Add("Cookie", csrfCookie);    // Cookies de sesiÃ³n asociadas al CSRF
             }
 
-            // Convertir monto a centavos (exigido por el integrador)
+            // ---------------------------------------------------------------------------------
+            // PASO 3: ConversiÃ³n de moneda a Centavos y serializaciÃ³n del Payload
+            // ---------------------------------------------------------------------------------
+            // El integrador financiero exige que el monto sea un entero que represente los centavos.
+            // Ejemplo: un monto decimal de $12.50 se transmite como el entero 1250.
             int montoEnCentavos = (int)(monto * 100);
 
             Console.WriteLine($"[TransferenciaGateway] Enviando a Integrador: from_account_id='{cuentaOrigenUuid}', to_account_id='{cuentaDestinoUuid}', amount={montoEnCentavos}");
 
-            // Crear payload alineado a 'TransferCommand' del integrador
+            // Construye el payload dinÃ¡mico alineado al contrato de 'TransferCommand' del integrador
             var payload = new
             {
-                from_account_id = cuentaOrigenUuid,   // UUID de cuenta emisor
-                to_account_id = cuentaDestinoUuid,       // UUID de cuenta receptor
-                amount = montoEnCentavos,             // Monto en centavos
+                from_account_id = cuentaOrigenUuid,         // Cuenta del emisor
+                to_account_id = cuentaDestinoUuid,             // Cuenta del receptor
+                amount = montoEnCentavos,                   // Monto en centavos
                 description = "Transferencia Interbancaria",
-                source_bank = sourceBank,
-                correlation_id = Guid.NewGuid().ToString() // ID de transacción
+                source_bank = sourceBank,                   // Identificador del banco emisor ("bank_ruby")
+                correlation_id = Guid.NewGuid().ToString()  // Id correlacional para trazabilidad en sistemas distribuidos
             };
 
             requestMessage.Content = JsonContent.Create(payload);
 
-            // Paso 3: Enviar la transferencia
+            // ---------------------------------------------------------------------------------
+            // PASO 4: EnvÃ­o y anÃ¡lisis del resultado
+            // ---------------------------------------------------------------------------------
             var response = await _client.SendAsync(requestMessage, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
@@ -89,9 +109,7 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
         }
     }
 
-    /// <summary>
-    /// Estructura para deserializar la respuesta del CSRF.
-    /// </summary>
+    // DTO para deserializar el token CSRF devuelto por el integrador externo.
     public sealed class CsrfResponse
     {
         public string Token { get; set; } = default!;

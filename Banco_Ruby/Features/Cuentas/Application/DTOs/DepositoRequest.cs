@@ -1,9 +1,7 @@
-namespace BancoCenit.Features.Cuentas.Application.DTOs
+﻿namespace BancoCenit.Features.Cuentas.Application.DTOs
 {
-    /// <summary>
-    /// DTO que representa una solicitud de depósito de dinero en cuenta.
-    /// </summary>
-    /// <param name="NumeroCuenta">Número de la cuenta bancaria destino del depósito.</param>
-    /// <param name="Monto">Cantidad de dinero a depositar (debe ser mayor que cero).</param>
+    // DTO que representa una solicitud de depÃ³sito de dinero en cuenta.
+    // NumeroCuenta: NÃºmero de la cuenta bancaria destino del depÃ³sito.
+    // Monto: Cantidad de dinero a depositar (debe ser mayor que cero).
     public sealed record DepositoRequest(string NumeroCuenta, decimal Monto);
 }
