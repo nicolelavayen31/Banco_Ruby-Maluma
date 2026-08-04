@@ -1,4 +1,4 @@
-﻿using BancoCenit.Extensions;
+using BancoCenit.Extensions;
 using BancoCenit.Common.Filters;
 using BancoCenit.Features.Cuentas;
 using BancoCenit.Features.Cuentas.Domain.Entities;
@@ -179,7 +179,10 @@ app.UseApplicationPipeline();
 
 // Habilita el mapeo de OpenAPI y la interfaz de documentaciÃ³n interactiva Scalar en la ruta por defecto.
 app.MapOpenApi();
-app.MapScalarApiReference();
+app.MapScalarApiReference(options =>
+{
+    options.WithOpenApiRoutePattern("../openapi/{documentName}.json");
+});
 
 // Mapea y publica los endpoints de la caracterÃ­stica de Cuentas (Vertical Slice) utilizando Minimal APIs.
 app.UseCuentasEndpoints();
