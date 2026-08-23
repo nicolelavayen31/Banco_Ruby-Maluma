@@ -195,7 +195,7 @@ public class CajeroConsole
         bool serverOnline = false;
         bool integratorOnline = false;
         
-        int bankPort = _bankPrefix == "RUBY" ? 5000 : 5002;
+        int bankPort = _bankPrefix == "RUBY" ? 5000 : (_bankPrefix == "FUEGO" ? 5004 : 5002);
 
         try
         {

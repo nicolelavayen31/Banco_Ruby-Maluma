@@ -1,0 +1,38 @@
+server:
+  port: 5004
+
+spring:
+  application:
+    name: banco-fuego
+  datasource:
+    url: jdbc:postgresql://localhost:5432/Banco Fuego
+    username: postgres
+    password: '123456'
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+jwt:
+  secret: super_secret_banco_fuego_key_that_is_at_least_32_characters_long_56789
+  expiration: 3600000 # 1 hora en ms
+
+bannet:
+  base-url: http://localhost:7000
+  api-key: sk-67c989abe88d26ccce59e0e4d5c229f77f2c36d0d89fba0e8aba03723c07cf04
+  agreement-id: 550e8400-e29b-41d4-a716-446655440101
+  source-bank: bank_fuego
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html

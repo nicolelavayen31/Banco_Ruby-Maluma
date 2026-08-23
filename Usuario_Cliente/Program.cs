@@ -34,7 +34,7 @@ while (true)
             .HighlightStyle(new Style(ConsoleTheme.PrimaryColor, decoration: Decoration.Bold))
             .AddChoices(new[] { 
                 "Banco Ruby (Puerto 5000)", 
-                "Banco Maluma (Puerto 5002)", 
+                "Banco Fuego (Puerto 5004)", 
                 "Salir de la Red Bancaria" 
             }));
 
@@ -71,9 +71,9 @@ while (true)
     }
     else
     {
-        apiBaseUrl = "http://localhost:5002";
-        bankName = "Maluma";
-        bankPrefix = "MALUMA";
+        apiBaseUrl = "http://localhost:5004";
+        bankName = "Fuego";
+        bankPrefix = "FUEGO";
     }
 
     // Instancia el cliente HTTP y lanza el bucle de interacción del cajero automático.

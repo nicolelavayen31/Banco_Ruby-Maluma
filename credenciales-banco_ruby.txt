@@ -1,0 +1,33 @@
+CREDENCIALES DE INTEGRACION - BANNET
+=====================================
+Entorno: desarrollo/demo (base de datos compartida)
+
+-------------------------------------
+BANCO RUBY
+-------------------------------------
+Nombre de la API key: Banco Ruby Integration
+API Key (header X-Api-Key): sk-add384f98d752fb7d30ee6a0ade19e0e02842b7d51c718d2104f22491193c1fb
+Agreement ID: 550e8400-e29b-41d4-a716-446655440100
+
+Cuentas BanNet:
+  - BR-ACC-001 (checking)
+    Account ID: 550e8400-e29b-41d4-a716-446655440201
+    Balance actual: 987000 (dolares)
+
+  - BR-ACC-002 (savings)
+    Account ID: 550e8400-e29b-41d4-a716-446655440202
+    Balance actual: 5000000 (dolares)
+
+-------------------------------------
+NOTAS
+-------------------------------------
+- Los balances de arriba son el estado al momento de generar este
+  archivo (2026-08-23); van a cambiar con cada transferencia procesada.
+  Para el valor actual, consultar GET /api/accounts/:id con la API key
+  correspondiente.
+- Ver GUIA_INTEGRACION_BANCOS.md en esta misma carpeta para el detalle
+  de como usar cada endpoint y que hacer con los webhooks recibidos.
+- Este archivo no se sube a git (toda la carpeta documentation/ esta en
+  .gitignore) - queda solo en este equipo. Al distribuirlo a cada banco,
+  hacerlo por un canal seguro, no por texto plano en un ticket o chat
+  publico.

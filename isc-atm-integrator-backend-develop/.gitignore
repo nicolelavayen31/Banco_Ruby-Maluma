@@ -1,0 +1,18 @@
+dist
+node_modules
+data
+.env
+*.log
+coverage
+.nyc_output
+.token
+.tmp
+.temp
+*.pid
+*.seed
+*.pid.lock
+report.*.json
+
+
+#documentacion interna
+/documentation

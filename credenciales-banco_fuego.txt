@@ -1,0 +1,35 @@
+CREDENCIALES DE INTEGRACION - BANNET
+=====================================
+Entorno: desarrollo/demo (base de datos compartida)
+Uso: entregar a cada equipo de banco por separado. No compartir la
+     API key de un banco con el otro banco.
+
+-------------------------------------
+BANCO FUEGO
+-------------------------------------
+Nombre de la API key: Banco Fuego Integration
+API Key (header X-Api-Key): sk-67c989abe88d26ccce59e0e4d5c229f77f2c36d0d89fba0e8aba03723c07cf04
+Agreement ID: 550e8400-e29b-41d4-a716-446655440101
+
+Cuentas BanNet:
+  - BF-ACC-001 (checking)
+    Account ID: 550e8400-e29b-41d4-a716-446655440203
+    Balance actual: 2013000 (dolares)
+
+  - BF-ACC-002 (savings)
+    Account ID: 550e8400-e29b-41d4-a716-446655440204
+    Balance actual: 3000000 (dolares)
+
+-------------------------------------
+NOTAS
+-------------------------------------
+- Los balances de arriba son el estado al momento de generar este
+  archivo (2026-08-23); van a cambiar con cada transferencia procesada.
+  Para el valor actual, consultar GET /api/accounts/:id con la API key
+  correspondiente.
+- Ver GUIA_INTEGRACION_BANCOS.md en esta misma carpeta para el detalle
+  de como usar cada endpoint y que hacer con los webhooks recibidos.
+- Este archivo no se sube a git (toda la carpeta documentation/ esta en
+  .gitignore) - queda solo en este equipo. Al distribuirlo a cada banco,
+  hacerlo por un canal seguro, no por texto plano en un ticket o chat
+  publico.

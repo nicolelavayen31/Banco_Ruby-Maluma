@@ -32,6 +32,22 @@ public class CajeroApiClient
         {
             HttpResponseMessage res = await _http.PostAsJsonAsync($"/api/cuentas/{numero}/autenticar", new { Pin = pin });
             string content = await res.Content.ReadAsStringAsync();
+            if (res.IsSuccessStatusCode)
+            {
+                try
+                {
+                    using JsonDocument doc = JsonDocument.Parse(content);
+                    if (doc.RootElement.TryGetProperty("token", out JsonElement tokenProp))
+                    {
+                        string? token = tokenProp.GetString();
+                        if (!string.IsNullOrEmpty(token))
+                        {
+                            _http.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+                        }
+                    }
+                }
+                catch {}
+            }
             return res.IsSuccessStatusCode ? content : $"ERROR: {content}";
         }
         catch (Exception ex)
