@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Threading;
@@ -33,8 +33,8 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
         // cuentaOrigenUuid: UUID identificador de la cuenta origen en el integrador.
         // cuentaDestinoUuid: UUID identificador de la cuenta destino en el integrador.
         // monto: Monto de la transferencia en formato decimal (ej: 10.50).
-        // cancellationToken: Token de cancelaciÃ³n de la tarea asÃ­ncrona.
-        public async Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, decimal monto, CancellationToken cancellationToken = default)
+        // cancellationToken: Token de cancelación de la tarea asíncrona.
+        public async Task EnviarAsync(string cuentaOrigenUuid, string cuentaDestinoUuid, string cuentaOrigenNumero, string cuentaDestinoNumero, decimal monto, CancellationToken cancellationToken = default)
         {
             // Carga de configuraciÃ³n del Integrador ATM desde appsettings.json
             var settings = _configuration.GetSection("IntegradorAtm");
@@ -87,15 +87,18 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
             // Construye el payload dinÃ¡mico alineado al contrato de 'TransferCommand' del integrador
             var payload = new
             {
-                from_account_id = cuentaOrigenUuid,         // Cuenta del emisor
-                to_account_id = cuentaDestinoUuid,             // Cuenta del receptor
-                amount = montoEnCentavos,                   // Monto en centavos
+                from_account_id = cuentaOrigenUuid,
+                to_account_id = cuentaDestinoUuid,
+                amount = montoEnCentavos,
                 description = "Transferencia Interbancaria",
-                source_bank = sourceBank,                   // Identificador del banco emisor ("bank_ruby")
-                correlation_id = Guid.NewGuid().ToString()  // Id correlacional para trazabilidad en sistemas distribuidos
+                source_bank = sourceBank,
+                correlation_id = Guid.NewGuid().ToString()
             };
 
-            requestMessage.Content = JsonContent.Create(payload);
+            string jsonPayload = System.Text.Json.JsonSerializer.Serialize(payload);
+            Console.WriteLine($"[DEBUG] Payload JSON exacto que se envía al Integrador: {jsonPayload}");
+
+            requestMessage.Content = new StringContent(jsonPayload, System.Text.Encoding.UTF8, "application/json");
 
             // ---------------------------------------------------------------------------------
             // PASO 4: EnvÃ­o y anÃ¡lisis del resultado

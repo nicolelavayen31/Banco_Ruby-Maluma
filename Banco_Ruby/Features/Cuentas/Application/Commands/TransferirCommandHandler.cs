@@ -1,4 +1,4 @@
-﻿using BancoCenit.Features.Cuentas.Domain.Entities;
+using BancoCenit.Features.Cuentas.Domain.Entities;
 using BancoCenit.Features.Cuentas.Application.DTOs;
 using BancoCenit.Features.Cuentas.Domain.Services;
 using BancoCenit.Features.Cuentas.Domain;
@@ -94,9 +94,24 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
 
                 TransferenciaRequest request = new TransferenciaRequest(command.NumeroCuentaOrigen, command.NumeroCuentaDestino, command.Monto, command.TransactionId);
 
-                // Traduce los nÃºmeros de cuenta locales a UUIDs requeridos por el Integrador (si existen).
-                string cuentaOrigenUuid = origen.IntegradorAccountId ?? origen.NumeroCuenta;
-                string cuentaDestinoUuid = destino?.IntegradorAccountId ?? command.NumeroCuentaDestino;
+                // Traduce los números de cuenta locales a UUIDs requeridos por el Integrador (si existen).
+                // MODIFICADO: Ya no usamos el respaldo '?? origen.NumeroCuenta' porque el integrador exige UUID obligatoriamente.
+                string? cuentaOrigenUuid = origen.IntegradorAccountId;
+                string? cuentaDestinoUuid = destino?.IntegradorAccountId ?? command.NumeroCuentaDestino;
+
+                // AGREGADO: Validar que el origen tenga un UUID
+                if (string.IsNullOrWhiteSpace(cuentaOrigenUuid))
+                {
+                    await _repository.RollbackTransactionAsync(cancellationToken);
+                    return Result.Fail<OperacionResponse>("La cuenta de origen no está vinculada al integrador (falta UUID).");
+                }
+
+                // AGREGADO: Validar que el destino parezca tener un UUID (Si es null o vacío fallamos)
+                if (string.IsNullOrWhiteSpace(cuentaDestinoUuid))
+                {
+                    await _repository.RollbackTransactionAsync(cancellationToken);
+                    return Result.Fail<OperacionResponse>("La cuenta de destino no proporcionó un UUID válido para el integrador.");
+                }
 
                 // ---------------------------------------------------------------------------------
                 // 3. EJECUCIÃ“N DE LA LOGICA DE DOMINIO Y LLAMADA EXTERNA
@@ -107,7 +122,8 @@ namespace BancoCenit.Features.Cuentas.Application.Commands
                     origen,
                     destino,
                     request,
-                    () => _gateway.EnviarAsync(cuentaOrigenUuid, cuentaDestinoUuid, command.Monto, cancellationToken)
+                    // MODIFICADO: Ahora pasamos también los números de cuenta internos
+                    () => _gateway.EnviarAsync(cuentaOrigenUuid, cuentaDestinoUuid, origen.NumeroCuenta, command.NumeroCuentaDestino, command.Monto, cancellationToken)
                 );
 
                 // Si ocurriÃ³ un error (saldo insuficiente o falla del gateway externo) se deshacen los cambios.
