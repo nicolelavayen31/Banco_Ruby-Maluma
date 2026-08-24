@@ -145,7 +145,7 @@ namespace BancoCenit.Features.Cuentas.Presentation
             }
             catch
             {
-                return Results.BadRequest(new { error = "Cuerpo invÃ¡lido" });
+                return Results.BadRequest(new { error = "Cuerpo invalido" });
             }
         }
 

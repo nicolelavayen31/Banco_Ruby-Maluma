@@ -43,13 +43,13 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
             string sourceBank = settings["SourceBank"] ?? "bank_ruby";
 
             // ---------------------------------------------------------------------------------
-            // PASO 1: Obtener el token CSRF obligatorio (GET /api/csrf-token)
+            // PASO 1: Obtener el token CSRF obligatorio (GET /csrf-token)
             // ---------------------------------------------------------------------------------
             // Limpia cabeceras residuales de llamadas anteriores para evitar colisiones de cookies.
             _client.DefaultRequestHeaders.Clear();
             _client.DefaultRequestHeaders.Add("x-api-version", "1");
             
-            var csrfHttpResponse = await _client.GetAsync($"{baseUrl}/api/csrf-token", cancellationToken);
+            var csrfHttpResponse = await _client.GetAsync($"{baseUrl}/csrf-token", cancellationToken);
             csrfHttpResponse.EnsureSuccessStatusCode();
 
             var csrfResponse = await csrfHttpResponse.Content.ReadFromJsonAsync<CsrfResponse>(cancellationToken: cancellationToken);
@@ -66,7 +66,7 @@ namespace BancoCenit.Features.Cuentas.Infrastructure.Gateways
             // ---------------------------------------------------------------------------------
             // PASO 2: Configurar cabeceras de autorizaciÃ³n y CSRF para el POST de Transferencia
             // ---------------------------------------------------------------------------------
-            var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/api/transactions/transfer");
+            var requestMessage = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/transactions/transfer");
             requestMessage.Headers.Add("x-api-version", "1");
             requestMessage.Headers.Add("x-api-key", apiKey);          // Clave secreta del convenio con el Integrador
             requestMessage.Headers.Add("x-csrf-token", csrfToken);   // Token CSRF recibido en el paso 1
